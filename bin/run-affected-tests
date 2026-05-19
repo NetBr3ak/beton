@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# bin/run-affected-tests <filepath> [--dry-run]
+# Discovers tests for the edited file, scoped to the nearest project root.
+# Exit 1 only on test failure. Exit 0 if no tests found or all pass.
+set -euo pipefail
+
+FILE="${1:-}"
+DRY_RUN="${2:-}"
+[ -z "${FILE}" ] && exit 0
+
+EXT="${FILE##*.}"
+BASENAME=$(basename "${FILE%.*}")
+
+# shellcheck source=bin/lib.sh
+source "$(dirname "$0")/lib.sh"
+TIMEOUT="${BETON_TEST_TIMEOUT:-8}"
+
+# Find nearest project root: walk up from file looking for a project marker
+# (pyproject.toml, setup.py, package.json, Cargo.toml, go.mod) or .git.
+# This prevents monorepo cross-project test triggering.
+find_project_root() {
+  local file_dir
+  file_dir="$(dirname "$1")"
+  local d="$file_dir"
+  while [ "$d" != "/" ]; do
+    for marker in pyproject.toml setup.py setup.cfg package.json Cargo.toml go.mod; do
+      [ -f "$d/$marker" ] && { echo "$d"; return; }
+    done
+    [ -d "$d/.git" ] && { echo "$d"; return; }
+    d=$(dirname "$d")
+  done
+  # No marker / no .git: fall back to grandparent of the file (preserves
+  # the common src/ + tests/ sibling pattern). Cap at /.
+  local gp
+  gp="$(dirname "$file_dir")"
+  [ -z "$gp" ] || [ "$gp" = "/" ] && gp="$file_dir"
+  echo "$gp"
+}
+PROJECT_ROOT=$(find_project_root "$FILE")
+
+# Discover tests: walk UP from file's dir to PROJECT_ROOT, at each level
+# check (a) sibling tests/test/__tests__ dirs and (b) the dir itself.
+discover_tests() {
+  local file_dir
+  file_dir="$(dirname "$FILE")"
+  local d="$file_dir"
+  local found=()
+  local patterns=(
+    "test_${BASENAME}.${EXT}"
+    "${BASENAME}_test.${EXT}"
+    "${BASENAME}.test.${EXT}"
+    "${BASENAME}.spec.${EXT}"
+  )
+  while :; do
+    for tests_dir in "$d/tests" "$d/test" "$d/__tests__"; do
+      [ -d "$tests_dir" ] && for pattern in "${patterns[@]}"; do
+        while IFS= read -r f; do
+          [ -n "$f" ] && found+=("$f")
+        done < <(find "$tests_dir" -maxdepth 4 -name "$pattern" \
+                   -not -path "*/node_modules/*" \
+                   -not -path "*/.venv/*" 2>/dev/null)
+      done
+    done
+    for pattern in "${patterns[@]}"; do
+      [ -f "$d/$pattern" ] && found+=("$d/$pattern")
+    done
+    [ "$d" = "$PROJECT_ROOT" ] && break
+    local parent
+    parent=$(dirname "$d")
+    [ "$parent" = "$d" ] && break
+    d="$parent"
+  done
+  printf '%s\n' "${found[@]+"${found[@]}"}" | awk 'NF && !seen[$0]++'
+}
+
+TEST_FILES=$(discover_tests)
+[ -z "${TEST_FILES}" ] && exit 0
+
+if [ "${DRY_RUN}" = "--dry-run" ]; then
+  echo "${TEST_FILES}"
+  exit 0
+fi
+
+case "${EXT}" in
+  py)
+    command -v pytest &>/dev/null && \
+      { _timeout "${TIMEOUT}" pytest ${TEST_FILES} --tb=short -q; exit $?; }
+    ;;
+  ts|tsx|js|jsx|mjs)
+    if command -v bun &>/dev/null; then
+      _timeout "${TIMEOUT}" bun test ${TEST_FILES}; exit $?
+    elif command -v npx &>/dev/null; then
+      _timeout "${TIMEOUT}" npx vitest run ${TEST_FILES}; exit $?
+    fi
+    ;;
+  rs)
+    command -v cargo &>/dev/null && \
+      { _timeout "${TIMEOUT}" cargo test; exit $?; }
+    ;;
+esac
+exit 0
