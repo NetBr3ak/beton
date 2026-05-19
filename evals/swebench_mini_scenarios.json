@@ -1,0 +1,124 @@
+[
+  {
+    "id": "obo-pagination",
+    "category": "off_by_one",
+    "issue": "When I open page 1 of the dashboard I get 11 rows but the page is supposed to show 10. Page 2 then starts at row 11 instead of row 10. Looks like something is one off.",
+    "files": {
+      "src/pagination.py": "def page_slice(rows, page, per_page):\n    \"\"\"Return rows for the given 1-indexed page.\"\"\"\n    start = (page - 1) * per_page\n    end = start + per_page + 1\n    return rows[start:end]\n"
+    },
+    "tests": {
+      "tests/test_pagination.py": "from src.pagination import page_slice\n\n\ndef test_first_page_size():\n    rows = list(range(100))\n    assert len(page_slice(rows, 1, 10)) == 10\n\n\ndef test_second_page_content():\n    rows = list(range(100))\n    assert page_slice(rows, 2, 10) == list(range(10, 20))\n"
+    },
+    "expected_passing_after_fix": "test_first_page_size or test_second_page_content"
+  },
+  {
+    "id": "auth-expiry-comparator",
+    "category": "off_by_one",
+    "issue": "Our token-check is letting through tokens that should be expired. A token whose expiry timestamp is exactly equal to the current time is treated as valid. Customers are seeing access right up to and including the second of expiry.",
+    "files": {
+      "src/auth.py": "def is_token_valid(now_ts: int, expiry_ts: int) -> bool:\n    return now_ts <= expiry_ts\n"
+    },
+    "tests": {
+      "tests/test_auth.py": "from src.auth import is_token_valid\n\n\ndef test_token_in_the_future():\n    assert is_token_valid(100, 200) is True\n\n\ndef test_token_in_the_past():\n    assert is_token_valid(200, 100) is False\n\n\ndef test_token_expired_at_now():\n    assert is_token_valid(100, 100) is False\n"
+    },
+    "expected_passing_after_fix": "test_token_expired_at_now"
+  },
+  {
+    "id": "null-cache-get",
+    "category": "null_deref",
+    "issue": "When the cache backend is unavailable we get an AttributeError instead of a clean cache miss. The app should keep working when the cache is down, just slower.",
+    "files": {
+      "src/cache.py": "class Cache:\n    def __init__(self, backend):\n        self.backend = backend\n\n    def get(self, key):\n        return self.backend.get(key)\n"
+    },
+    "tests": {
+      "tests/test_cache.py": "from src.cache import Cache\n\n\nclass FakeBackend:\n    def get(self, key):\n        return f'value-{key}'\n\n\ndef test_get_with_backend():\n    c = Cache(FakeBackend())\n    assert c.get('x') == 'value-x'\n\n\ndef test_get_without_backend_returns_none():\n    c = Cache(None)\n    assert c.get('x') is None\n"
+    },
+    "expected_passing_after_fix": "test_get_without_backend_returns_none"
+  },
+  {
+    "id": "bool-flag-parsing",
+    "category": "config",
+    "issue": "We set FEATURE_ENABLED=0 in production but the feature is still on. Same for FEATURE_ENABLED=false. The flag only goes off when the env var is empty.",
+    "files": {
+      "src/settings.py": "def parse_bool(value):\n    if isinstance(value, bool):\n        return value\n    return bool(value)\n"
+    },
+    "tests": {
+      "tests/test_settings.py": "from src.settings import parse_bool\n\n\ndef test_true_strings():\n    assert parse_bool('true') is True\n    assert parse_bool('1') is True\n\n\ndef test_false_strings():\n    assert parse_bool('false') is False\n    assert parse_bool('0') is False\n    assert parse_bool('') is False\n"
+    },
+    "expected_passing_after_fix": "test_false_strings"
+  },
+  {
+    "id": "json-decimal",
+    "category": "encoding",
+    "issue": "Export to JSON is crashing on prices: `TypeError: Object of type Decimal is not JSON serializable`. Prices come from the DB as Decimal('1.50') and need to round-trip through JSON cleanly.",
+    "files": {
+      "src/export.py": "import json\n\n\ndef dump(obj) -> str:\n    return json.dumps(obj)\n"
+    },
+    "tests": {
+      "tests/test_export.py": "from decimal import Decimal\nimport json\n\nfrom src.export import dump\n\n\ndef test_decimal_serialized():\n    out = dump({'price': Decimal('1.50')})\n    parsed = json.loads(out)\n    assert parsed['price'] in ('1.50', 1.5, '1.5')\n\n\ndef test_plain_dict():\n    assert json.loads(dump({'a': 1, 'b': 'x'})) == {'a': 1, 'b': 'x'}\n"
+    },
+    "expected_passing_after_fix": "test_decimal_serialized"
+  },
+  {
+    "id": "cors-origins-split",
+    "category": "config",
+    "issue": "Browser requests from the second and third domains in our ALLOWED_ORIGINS env var are getting CORS errors. Only the first listed origin actually works. The env var is comma-separated.",
+    "files": {
+      "src/cors.py": "def is_origin_allowed(origin: str, allowed_origins_csv: str) -> bool:\n    return origin == allowed_origins_csv\n"
+    },
+    "tests": {
+      "tests/test_cors.py": "from src.cors import is_origin_allowed\n\n\ndef test_single_origin():\n    assert is_origin_allowed('https://a.com', 'https://a.com') is True\n\n\ndef test_multiple_origins():\n    csv = 'https://a.com,https://b.com,https://c.com'\n    assert is_origin_allowed('https://b.com', csv) is True\n    assert is_origin_allowed('https://c.com', csv) is True\n\n\ndef test_unknown_origin_rejected():\n    csv = 'https://a.com,https://b.com'\n    assert is_origin_allowed('https://evil.com', csv) is False\n"
+    },
+    "expected_passing_after_fix": "test_multiple_origins"
+  },
+  {
+    "id": "decoy-validator",
+    "category": "null_deref",
+    "issue": "POST /api/users is crashing intermittently with an AttributeError. It only happens for some requests, not all of them. The stack trace points somewhere in the validation pipeline but I haven't been able to localize it.",
+    "files": {
+      "src/auth.py": "def authenticate(user_id: str) -> bool:\n    return bool(user_id)\n",
+      "src/sanitize.py": "def strip_tags(html: str) -> str:\n    out = []\n    in_tag = False\n    for ch in html:\n        if ch == '<':\n            in_tag = True\n        elif ch == '>':\n            in_tag = False\n        elif not in_tag:\n            out.append(ch)\n    return ''.join(out)\n",
+      "src/validate.py": "def validate_payload(payload: dict) -> dict:\n    name = payload.get('user').upper()\n    return {'user': name}\n"
+    },
+    "tests": {
+      "tests/test_validate.py": "import pytest\nfrom src.validate import validate_payload\n\n\ndef test_normal_payload():\n    assert validate_payload({'user': 'alice'}) == {'user': 'ALICE'}\n\n\ndef test_missing_user_handled():\n    with pytest.raises((KeyError, ValueError)):\n        validate_payload({})\n"
+    },
+    "expected_passing_after_fix": "test_missing_user_handled"
+  },
+  {
+    "id": "regex-greedy",
+    "category": "regex",
+    "issue": "The markdown bold extractor is returning weird results: for the line `say **hi** to **alice**` we get a single element back containing `hi** to **alice` instead of two separate elements.",
+    "files": {
+      "src/markdown.py": "import re\n\n_BOLD = re.compile(r'\\*\\*(.+)\\*\\*')\n\n\ndef extract_bold(text: str) -> list[str]:\n    return _BOLD.findall(text)\n"
+    },
+    "tests": {
+      "tests/test_markdown.py": "from src.markdown import extract_bold\n\n\ndef test_single_bold():\n    assert extract_bold('hello **world**!') == ['world']\n\n\ndef test_multiple_bold_spans():\n    assert extract_bold('say **hi** to **alice**') == ['hi', 'alice']\n\n\ndef test_no_bold():\n    assert extract_bold('plain text') == []\n"
+    },
+    "expected_passing_after_fix": "test_multiple_bold_spans"
+  },
+  {
+    "id": "subtle-rounding",
+    "category": "type_coerce",
+    "issue": "Accounting flagged a discrepancy: 1.005 is being rounded to 1.00 in our system but they expect 1.01. Same with 1.015 (we get 1.01, they want 1.02). They've checked and these need to be round-half-up consistently.",
+    "files": {
+      "src/pricing.py": "def round_price(amount: float) -> float:\n    return round(amount, 2)\n"
+    },
+    "tests": {
+      "tests/test_pricing.py": "from src.pricing import round_price\n\n\ndef test_normal_rounding():\n    assert round_price(1.234) == 1.23\n    assert round_price(1.236) == 1.24\n\n\ndef test_round_half_up():\n    assert round_price(1.005) == 1.01\n    assert round_price(1.015) == 1.02\n    assert round_price(1.025) == 1.03\n"
+    },
+    "expected_passing_after_fix": "test_round_half_up"
+  },
+  {
+    "id": "async-gather-swallow",
+    "category": "async",
+    "issue": "Our batch fetcher is hiding errors. When one of the items fails the call still returns a list as if everything succeeded; the failure is buried in the result list as a ValueError object instead of being raised. We need failures to propagate.",
+    "files": {
+      "src/fetcher.py": "import asyncio\n\n\nasync def fetch_one(x):\n    if x == 'bad':\n        raise ValueError('bad input')\n    return x.upper()\n\n\nasync def fetch_all(items):\n    return await asyncio.gather(*(fetch_one(i) for i in items), return_exceptions=True)\n"
+    },
+    "tests": {
+      "tests/test_fetcher.py": "import asyncio\nimport pytest\nfrom src.fetcher import fetch_all\n\n\ndef test_happy_path():\n    out = asyncio.run(fetch_all(['a', 'b']))\n    assert out == ['A', 'B']\n\n\ndef test_exception_propagates():\n    with pytest.raises(ValueError):\n        asyncio.run(fetch_all(['a', 'bad', 'b']))\n"
+    },
+    "expected_passing_after_fix": "test_exception_propagates"
+  }
+]

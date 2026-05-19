@@ -1,0 +1,50 @@
+{
+  "name": "beton",
+  "version": "0.1.0",
+  "description": "Verify-on-edit loop for Claude Code: lint, typecheck, and run affected tests after every Edit. Refuse bypass shortcuts. Block on failure. Includes an Agentless bug-fix skill.",
+  "author": {
+    "name": "Szymon Jędryczko",
+    "url": "https://github.com/tenzanlogic"
+  },
+  "license": "MIT",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/beton-activate.js",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-guard.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-verify.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/statusline.sh"
+  }
+}

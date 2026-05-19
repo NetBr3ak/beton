@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# bin/lint-file <filepath>
+# Language-appropriate linter. Exit 0 = clean, 1 = errors, skip if no tool.
+set -euo pipefail
+
+FILE="${1:-}"
+[ -z "${FILE}" ] || [ ! -f "${FILE}" ] && { echo "Usage: lint-file <filepath>" >&2; exit 1; }
+
+case "${FILE##*.}" in
+  py)
+    if command -v ruff &>/dev/null; then
+      exec ruff check --output-format=concise "${FILE}"
+    elif command -v flake8 &>/dev/null; then
+      exec flake8 "${FILE}"
+    fi
+    ;;
+  ts|tsx|js|jsx|mjs|cjs)
+    if command -v eslint &>/dev/null; then
+      # exit 1 = lint errors; exit 2 = config/fatal (no config → skip)
+      # Use || to prevent set -e from firing on non-zero exit
+      JS_EXIT=0
+      OUT=$(eslint "${FILE}" 2>&1) || JS_EXIT=$?
+      [ "${JS_EXIT}" -eq 1 ] && { echo "${OUT}"; exit 1; }
+    fi
+    ;;
+  rs)
+    if command -v cargo &>/dev/null && [ -f "$(git rev-parse --show-toplevel 2>/dev/null)/Cargo.toml" ]; then
+      OUT=$(cargo clippy --message-format=short -- -D warnings 2>&1) || { echo "${OUT}"; exit 1; }
+    fi
+    ;;
+  go)
+    if command -v staticcheck &>/dev/null; then
+      exec staticcheck "${FILE}"
+    fi
+    ;;
+esac
+exit 0

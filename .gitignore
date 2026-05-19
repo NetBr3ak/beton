@@ -1,0 +1,9 @@
+/tmp/
+*.pyc
+__pycache__/
+.DS_Store
+.mypy_cache/
+.ruff_cache/
+.remember/
+evals/snapshots/results-*.json
+evals/snapshots/swebench-*.json

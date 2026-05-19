@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest an addition or change to BETON
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: Describe the situation BETON doesn't handle today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What you'd want
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Other ways to solve this, and why they don't quite fit.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Which part of BETON would this affect?
+      options:
+        - PreToolUse guard
+        - PostToolUse verifier (lint/typecheck/test)
+        - Eval system
+        - Skill content (beton or beton-swebench)
+        - Subagent (localize or repo-map)
+        - Statusline or stats
+        - Docs
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I'd be willing to send a PR for this.
+          required: false

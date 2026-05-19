@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# bin/typecheck-file <filepath>
+# Exit 0 = clean, 1 = type errors, 0 if no tool available.
+set -euo pipefail
+
+FILE="${1:-}"
+[ -z "${FILE}" ] || [ ! -f "${FILE}" ] && exit 1
+
+# shellcheck source=bin/lib.sh
+source "$(dirname "$0")/lib.sh"
+TIMEOUT="${BETON_TC_TIMEOUT:-5}"
+
+case "${FILE##*.}" in
+  py)
+    if command -v mypy &>/dev/null; then
+      # Respect user config when present (mypy.ini, .mypy.ini, pyproject.toml [tool.mypy], setup.cfg [mypy]).
+      # Only inject our defaults if no config is reachable.
+      D=$(dirname "${FILE}")
+      HAS_CFG=0
+      while [ "$D" != "/" ]; do
+        for c in mypy.ini .mypy.ini setup.cfg; do
+          [ -f "$D/$c" ] && grep -q "^\[mypy" "$D/$c" 2>/dev/null && HAS_CFG=1 && break 2
+        done
+        if [ -f "$D/pyproject.toml" ] && grep -q "^\[tool.mypy" "$D/pyproject.toml" 2>/dev/null; then
+          HAS_CFG=1; break
+        fi
+        D=$(dirname "$D")
+      done
+      if [ "$HAS_CFG" = "1" ]; then
+        _timeout "${TIMEOUT}" mypy "${FILE}"; exit $?
+      else
+        _timeout "${TIMEOUT}" mypy --ignore-missing-imports --no-error-summary "${FILE}"; exit $?
+      fi
+    elif command -v pyright &>/dev/null; then
+      _timeout "${TIMEOUT}" pyright "${FILE}"; exit $?
+    fi
+    ;;
+  go)
+    if command -v go &>/dev/null; then
+      DIR=$(dirname "${FILE}")
+      OUT=$(_timeout "${TIMEOUT}" go vet "${DIR}/..." 2>&1) || { echo "${OUT}"; exit 1; }
+    fi
+    ;;
+  ts|tsx)
+    TSCONFIG=$(python3 - "${FILE}" << 'PYEOF'
+import os, sys
+d = os.path.dirname(os.path.abspath(sys.argv[1]))
+for _ in range(8):
+    t = os.path.join(d, 'tsconfig.json')
+    if os.path.exists(t):
+        print(t); sys.exit(0)
+    parent = os.path.dirname(d)
+    if parent == d: break
+    d = parent
+PYEOF
+    )
+    if command -v tsc &>/dev/null && [ -n "${TSCONFIG}" ]; then
+      OUT=$(_timeout "${TIMEOUT}" tsc --project "${TSCONFIG}" --noEmit 2>&1) || true
+      FILTERED=$(echo "${OUT}" | grep -F "$(basename "${FILE}")" || true)
+      if [ -n "${FILTERED}" ]; then
+        echo "${FILTERED}"
+        exit 1
+      fi
+    fi
+    ;;
+esac
+exit 0

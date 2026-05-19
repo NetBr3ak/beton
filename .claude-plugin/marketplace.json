@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "beton",
+  "description": "Verify-on-every-edit loop for Claude Code. Lint, typecheck, affected tests. Block on failure.",
+  "owner": {
+    "name": "Szymon Jędryczko",
+    "url": "https://github.com/tenzanlogic"
+  },
+  "plugins": [
+    {
+      "name": "beton",
+      "description": "Tight feedback loop. No ornamentation.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

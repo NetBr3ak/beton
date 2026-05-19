@@ -1,0 +1,39 @@
+name: tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install verifier tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy pytest
+          npm install -g eslint typescript
+
+      - name: Make scripts executable
+        run: |
+          chmod +x hooks/*.sh bin/* tests/*.sh
+
+      - name: Run test suite
+        run: |
+          fail=0
+          for t in tests/test-*.sh; do
+            echo "=== $t ==="
+            bash "$t" || fail=1
+          done
+          exit $fail
