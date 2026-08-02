@@ -10,6 +10,8 @@ STATE_FILE="${HOME}/.claude/.beton-state"
 # shellcheck source=bin/lib.sh
 source "${PLUGIN_ROOT}/bin/lib.sh"
 
+[ "$(beton_mode)" = "off" ] && exit 0
+
 # Write state file (best-effort, never block the hook)
 _write_state() {
   python3 -c "

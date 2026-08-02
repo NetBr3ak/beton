@@ -94,6 +94,11 @@ check_eq "$(guard_decision "$(mkevent_bash 'rm /tmp/scratch.log')")" "allow" "rm
 OUT=$(BETON_BYPASS_GUARD=off bash "$GUARD" <<< "$(mkevent Edit 'x = 1  # noqa' /tmp/x.py)" 2>/dev/null || true)
 check_eq "$OUT" "" "BETON_BYPASS_GUARD=off: silent"
 
+# --- BETON_MODE=off disables the guard entirely ---
+
+OUT=$(BETON_MODE=off bash "$GUARD" <<< "$(mkevent Edit 'x = 1  # noqa' /tmp/x.py)" 2>/dev/null || true)
+check_eq "$OUT" "" "BETON_MODE=off: silent even on a bypass pattern"
+
 # --- Doc-extension carve-out: suppression patterns in non-source files allowed ---
 # The verifier never runs lint/typecheck on docs/config files, so a "# noqa"
 # in a markdown body has no real-world bypass effect. Don't waste a block.

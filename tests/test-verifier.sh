@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 source "$(dirname "$0")/helpers.sh"
+isolate_home
 
 HOOK=hooks/post-tool-verify.sh
 
@@ -123,6 +124,14 @@ EVT=$(python3 -c "import json,sys; print(json.dumps({'tool_name':'Edit','tool_in
 OUT=$(echo "${EVT}" | bash "${HOOK}" 2>/dev/null)
 check_eq "${OUT}" "" "file without extension: no block"
 rm -f "${NOEXT}"
+
+# Test: BETON_MODE=off disables the verifier entirely, even on a dirty file
+MODE_OFF_PY=$(python3 -c "import tempfile,os; f=tempfile.NamedTemporaryFile(suffix='.py',dir='/tmp',delete=False,prefix='beton_v_modeoff_'); print(f.name); f.close()")
+printf 'import unused_module\nx = 1\n' > "${MODE_OFF_PY}"
+EVENT6=$(python3 -c "import json,sys; print(json.dumps({'tool_name':'Write','tool_input':{'path':sys.argv[2]},'tool_response':{'output':'ok'}}))" -- "${MODE_OFF_PY}")
+OUT6=$(echo "${EVENT6}" | BETON_MODE=off bash "${HOOK}" 2>/dev/null)
+check_eq "${OUT6}" "" "BETON_MODE=off: silent even on a lint error"
+rm -f "${MODE_OFF_PY}"
 
 rm -f "${CLEAN_PY}" "${DIRTY_PY}" "${MD_FILE}"
 report

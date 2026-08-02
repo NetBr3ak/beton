@@ -9,7 +9,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const VALID_MODES = ['strict', 'standard', 'audit', 'off'];
+// Only 'strict' (full enforcement) and 'off' (disabled) have real behavior,
+// enforced in hooks/pre-tool-guard.sh and hooks/post-tool-verify.sh via
+// bin/lib.sh's beton_mode(). Keep this list in sync with that function.
+const VALID_MODES = ['strict', 'off'];
 const DEFAULT_MODE = 'strict';
 
 function getConfigDir() {

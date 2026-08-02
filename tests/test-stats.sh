@@ -5,10 +5,7 @@
 source "$(dirname "$0")/helpers.sh"
 
 STATS=bin/beton-stats
-
-# Use a temp HOME so we don't trample the user's actual stats during tests.
-export HOME=$(mktemp -d -t beton_stats_test_XXXX)
-trap 'rm -rf "$HOME"' EXIT
+isolate_home
 
 # --- basic incr/read ---
 

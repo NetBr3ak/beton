@@ -4,6 +4,14 @@
 
 PASS=0; FAIL=0; TOTAL=0
 
+# isolate_home: point $HOME at a scratch dir for the rest of this test file,
+# so hooks that read/write ~/.claude/.beton-state or .beton-stats.json can't
+# trample the developer's real files. Call once, near the top of the script.
+isolate_home() {
+  export HOME=$(mktemp -d -t beton_test_XXXX)
+  trap 'rm -rf "$HOME"' EXIT
+}
+
 ok() {
   TOTAL=$((TOTAL+1)); PASS=$((PASS+1))
   printf "  ok %d - %s\n" "$TOTAL" "$1"

@@ -15,6 +15,11 @@ set -euo pipefail
 
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
+# shellcheck source=bin/lib.sh
+source "${PLUGIN_ROOT}/bin/lib.sh"
+
+[ "$(beton_mode)" = "off" ] && exit 0
+
 if [ "${BETON_BYPASS_GUARD:-on}" = "off" ]; then
   exit 0
 fi

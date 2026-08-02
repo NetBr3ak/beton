@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Integration smoke test: validates plugin components are wired correctly.
 source "$(dirname "$0")/helpers.sh"
+isolate_home
 
 echo "=== BETON integration smoke test ==="
 
@@ -104,10 +105,9 @@ if command -v node &>/dev/null; then
   check_eq "$STATE" "ready" "beton-activate.js: resets state to 'ready'"
 else
   ok "node not installed, skip activate hook test"
-  ok "node not installed, skip activate hook test"
 fi
 
-# 12. Verifier writes state file after run
+# 11. Verifier writes state file after run
 if command -v ruff &>/dev/null; then
   rm -f ~/.claude/.beton-state
   DIRTY=$(python3 -c "import tempfile; f=tempfile.NamedTemporaryFile(suffix='.py',dir='/tmp',delete=False,prefix='beton_smoke_'); print(f.name); f.close()")
