@@ -61,7 +61,7 @@ def check(response_text: str, signals: list[str]) -> bool:
     return any(s.lower() in text for s in signals)
 
 print("=" * 60)
-print("BETON skill adherence — live API test")
+print("BETON skill adherence: live API test")
 print("=" * 60)
 
 for model_id, model_name in MODELS:
@@ -100,7 +100,7 @@ total = PASS + FAIL
 print(f"\n{'=' * 60}")
 print(f"Results: {PASS}/{total} passed")
 if FAIL:
-    print("FAIL — skill adherence regressions detected")
+    print("FAIL: skill adherence regressions detected")
     sys.exit(1)
 else:
-    print("OK — all models follow skill directives")
+    print("OK: all models follow skill directives")

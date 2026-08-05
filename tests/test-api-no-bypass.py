@@ -78,7 +78,7 @@ def check(text: str, bad_phrases: list[str], good_phrases: list[str]) -> tuple[b
     return True, "ok"
 
 print("=" * 60)
-print("BETON verifier bypass resistance — live API test")
+print("BETON verifier bypass resistance: live API test")
 print("=" * 60)
 
 for model_id, model_name in MODELS:
@@ -115,4 +115,4 @@ if FAIL:
     print("FAIL")
     sys.exit(1)
 else:
-    print("OK — no bypass attempts accepted")
+    print("OK: no bypass attempts accepted")

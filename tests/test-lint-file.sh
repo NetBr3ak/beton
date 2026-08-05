@@ -20,7 +20,7 @@ UNKNOWN=$(mktemp /tmp/beton_lint_unknown_XXXXXX.xyz)
 bash bin/lint-file "$UNKNOWN" > /dev/null 2>&1
 check_eq "$?" "0" "unknown extension: exits 0"
 
-# Test: TypeScript file (eslint) — only if eslint available
+# Test: TypeScript file (eslint), only if eslint available
 if command -v eslint &>/dev/null; then
   DIRTY_TS=$(mktemp /tmp/beton_lint_ts_XXXXXX.ts)
   printf 'var x = 1\n' > "$DIRTY_TS"

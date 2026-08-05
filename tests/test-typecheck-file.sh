@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 source "$(dirname "$0")/helpers.sh"
 
-# macOS mktemp doesn't support extensions in templates — use a temp dir.
+# macOS mktemp doesn't support extensions in templates, use a temp dir.
 TMPDIR_TC=$(mktemp -d /tmp/beton_tc_XXXXXX)
 trap 'rm -rf "$TMPDIR_TC"' EXIT
 

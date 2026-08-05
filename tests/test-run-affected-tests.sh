@@ -22,7 +22,7 @@ check_eq "${FOUND2}" "" "orphan.py → no tests found (empty output)"
 bash bin/run-affected-tests "${PROJ}/src/auth.py" --dry-run 2>/dev/null
 check_eq "$?" "0" "exits 0 regardless"
 
-# Test: monorepo isolation — editing app1/src/foo.py must not find app2/tests/
+# Test: monorepo isolation, editing app1/src/foo.py must not find app2/tests/
 MONO=$(mktemp -d /tmp/beton_mono_XXXX)
 mkdir -p "${MONO}/app1/src" "${MONO}/app1/tests" "${MONO}/app2/src" "${MONO}/app2/tests"
 # Each subproject has its own pyproject.toml so they're separate project roots

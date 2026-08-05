@@ -26,13 +26,13 @@ Output **only** this block:
 
 ```
 LOCALIZE: <one-line restatement of the issue>
-1. path/to/file.py:42  function_name  — <one-phrase reason>
-2. path/to/other.py:18  caller_function  — <reason>
-3. path/to/models.py:7  ClassName  — <reason>
+1. path/to/file.py:42  function_name  : <one-phrase reason>
+2. path/to/other.py:18  caller_function  : <reason>
+3. path/to/models.py:7  ClassName  : <reason>
 ```
 
 Rules:
 - Up to 5 candidates, highest confidence first.
-- Format: `path:line  symbol  — reason`.
+- Format: `path:line  symbol  : reason`.
 - One phrase per reason. No paragraphs.
-- If no candidate plausible: `1. unknown  — insufficient signal; need <what would help>`.
+- If no candidate plausible: `1. unknown  : insufficient signal; need <what would help>`.

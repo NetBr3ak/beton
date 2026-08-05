@@ -49,7 +49,7 @@ assert m, 'no frontmatter'
 " && ok "$agent: frontmatter valid" || not_ok "$agent: frontmatter missing"
 done
 
-# 6. Verifier blocks on dirty Python (only if ruff is available — otherwise skip)
+# 6. Verifier blocks on dirty Python (only if ruff is available, otherwise skip)
 if command -v ruff &>/dev/null; then
   DIRTY=$(python3 -c "import tempfile; f=tempfile.NamedTemporaryFile(suffix='.py',dir='/tmp',delete=False,prefix='beton_smoke_'); print(f.name); f.close()")
   printf 'import unused_module\nx = 1\n' > "$DIRTY"

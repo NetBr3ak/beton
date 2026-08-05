@@ -71,7 +71,7 @@ for shape in \
 done
 rm -f "${DIRTY_PARSER}"
 
-# Test: huge error output (1000+ lint errors) — must not SIGPIPE, must truncate cleanly
+# Test: huge error output (1000+ lint errors), must not SIGPIPE, must truncate cleanly
 FLOOD_PY=$(python3 -c "import tempfile,os; f=tempfile.NamedTemporaryFile(suffix='.py',dir='/tmp',delete=False,prefix='beton_v_flood_'); print(f.name); f.close()")
 python3 -c "
 import sys

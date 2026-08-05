@@ -6,7 +6,7 @@
 # Does not call the API.
 source "$(dirname "$0")/helpers.sh"
 
-# 1. Dry run reports all scenarios as FAIL (expected) — none should accidentally
+# 1. Dry run reports all scenarios as FAIL (expected): none should accidentally
 #    pass on the buggy starter code.
 DRY_OUT=$(python3 evals/swebench_mini.py --dry-run 2>&1)
 UNEXPECTED=$(echo "${DRY_OUT}" | grep "unexpected" || true)

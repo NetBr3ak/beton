@@ -19,4 +19,4 @@ for t in tests/test-*.sh; do bash "$t"; done
 - [ ] New tests added if behavior changed
 - [ ] `CHANGELOG.md` updated under `## [Unreleased]` if user-visible
 - [ ] README updated if user-visible behavior changed
-- [ ] No em-dashes in new prose (`grep -nF '—' README.md` returns nothing)
+- [ ] No em dashes in new prose (`grep -nF '—' README.md` returns nothing)

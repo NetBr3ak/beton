@@ -89,7 +89,7 @@ python3 evals/swebench_mini.py --model haiku --arm beton
 The synthetic scenarios are intentionally small (1–3 files, code
 visible in the prompt). They validate the pipeline (apply_response,
 pytest discovery, conftest injection) but don't discriminate between
-arms — there's nothing to localize within when all the code fits in
+arms: there's nothing to localize within when all the code fits in
 the prompt.
 
 For a measurement that does discriminate, the right path is full
