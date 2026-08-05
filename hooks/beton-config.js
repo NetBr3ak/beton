@@ -49,4 +49,4 @@ function getMode() {
   return DEFAULT_MODE;
 }
 
-module.exports = { getMode, getConfigDir, getConfigPath, VALID_MODES };
+module.exports = { getMode };
