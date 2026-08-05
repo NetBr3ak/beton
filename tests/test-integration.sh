@@ -29,25 +29,27 @@ for bin in bin/lint-file bin/typecheck-file bin/run-affected-tests bin/repo-map 
   [ -x "$bin" ] && ok "$bin: exists and executable" || not_ok "$bin: missing or not executable"
 done
 
-# 4. Skills have valid frontmatter
-for skill in skills/beton/SKILL.md skills/beton-swebench/SKILL.md; do
+# 4. Every markdown file that opens with a frontmatter block parses as YAML.
+# Presence alone is not enough: Claude Code loads these as YAML, so an unquoted
+# value carrying a colon or a stray quote breaks the command without touching prose.
+if python3 -c "import yaml" 2>/dev/null; then
   python3 -c "
-import re
-with open('$skill') as f: c = f.read()
-m = re.match(r'^---\n.*?\n---', c, re.DOTALL)
-assert m, 'no frontmatter'
-" && ok "$skill: frontmatter valid" || not_ok "$skill: frontmatter missing"
-done
-
-# 5. Agents have valid frontmatter
-for agent in agents/repo-map.md agents/localize.md; do
-  python3 -c "
-import re
-with open('$agent') as f: c = f.read()
-m = re.match(r'^---\n.*?\n---', c, re.DOTALL)
-assert m, 'no frontmatter'
-" && ok "$agent: frontmatter valid" || not_ok "$agent: frontmatter missing"
-done
+import pathlib, re, sys, yaml
+bad = []
+for f in sorted(pathlib.Path('.').rglob('*.md')):
+    m = re.match(r'^---\n(.*?)\n---\n', f.read_text(encoding='utf-8'), re.DOTALL)
+    if not m:
+        continue
+    try:
+        yaml.safe_load(m.group(1))
+    except yaml.YAMLError as e:
+        bad.append(f'{f}: {str(e).splitlines()[0]}')
+if bad:
+    sys.exit('\n'.join(bad))
+" && ok "frontmatter: every markdown block parses as YAML" || not_ok "frontmatter: invalid YAML"
+else
+  ok "pyyaml not installed, skipping frontmatter parse test"
+fi
 
 # 6. Verifier blocks on dirty Python (only if ruff is available, otherwise skip)
 if command -v ruff &>/dev/null; then

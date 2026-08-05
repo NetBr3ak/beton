@@ -1,6 +1,6 @@
 ---
 name: beton
-description: Show BETON status: which verifier tools are installed, and where the gaps are.
+description: Show BETON status, which verifier tools are installed and where the gaps are.
 ---
 
 Report which verifier dependencies are present on the user's machine, in this exact format:
