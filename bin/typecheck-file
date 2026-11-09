@@ -55,10 +55,10 @@ for _ in range(8):
 PYEOF
     )
     if command -v tsc &>/dev/null && [ -n "${TSCONFIG}" ]; then
-      OUT=$(_timeout "${TIMEOUT}" tsc --project "${TSCONFIG}" --noEmit 2>&1) || true
-      FILTERED=$(echo "${OUT}" | grep -F "$(basename "${FILE}")" || true)
-      if [ -n "${FILTERED}" ]; then
-        echo "${FILTERED}"
+      STATUS=0
+      OUT=$(_timeout "${TIMEOUT}" tsc --project "${TSCONFIG}" --noEmit 2>&1) || STATUS=$?
+      if [ "$STATUS" -ne 0 ]; then
+        printf '%s\n' "${OUT}"
         exit 1
       fi
     fi

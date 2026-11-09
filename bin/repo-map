@@ -16,22 +16,22 @@ MAX_CHARS=$(( BUDGET * 4 ))
 
 collect_symbols() {
   local root="$1"
-  if command -v ctags &>/dev/null && ctags --version 2>&1 | grep -qiE "universal|exuberant"; then
-    ctags -R --fields=+n --output-format=json --languages=Python,JavaScript,TypeScript,Go,Rust \
+  if command -v ctags &>/dev/null && ctags --version 2>&1 | grep -qi "universal"; then
+    ctags -R -f - --fields=+n --output-format=json --languages=Python,JavaScript,TypeScript,Go,Rust \
       "${root}" 2>/dev/null \
-    | python3 << 'PYEOF'
+    | python3 -c '
 import json, sys, collections
 
 symbols = collections.defaultdict(list)
 for line in sys.stdin:
     try:
         t = json.loads(line)
-        if t.get('_type') != 'tag':
+        if t.get("_type") != "tag":
             continue
-        f = t.get('path', '')
-        k = t.get('kind', '?')[:2]
-        n = t.get('name', '')
-        ln = t.get('line', 0)
+        f = t.get("path", "")
+        k = t.get("kind", "?")[:2]
+        n = t.get("name", "")
+        ln = t.get("line", 0)
         if f and n:
             symbols[f].append((k, n, ln))
     except Exception:
@@ -43,13 +43,12 @@ for f, tags in sorted(symbols.items()):
     print(f"FILE: {f}")
     for kind, name, line in sorted(tags, key=lambda x: x[2]):
         print(f"  {kind} {name} :{line}")
-PYEOF
+'
   elif command -v rg &>/dev/null; then
     rg --no-heading -n \
       -e '^(def |class |function |export (default |async )?(function|class) |const [A-Z])' \
       --glob '*.py' --glob '*.ts' --glob '*.tsx' --glob '*.js' \
       "${root}" 2>/dev/null \
-    | head -500 \
     | python3 -c '
 import sys, re, collections
 NAME_RX = re.compile(
@@ -57,7 +56,9 @@ NAME_RX = re.compile(
     r"(def|class|function|const)\s+([A-Za-z_][A-Za-z0-9_]*)"
 )
 by_file = collections.defaultdict(list)
-for ln in sys.stdin:
+for index, ln in enumerate(sys.stdin):
+    if index >= 500:
+        continue
     parts = ln.rstrip("\n").split(":", 2)
     if len(parts) != 3:
         continue
@@ -78,7 +79,7 @@ for f, syms in sorted(by_file.items()):
       -not -path "*/node_modules/*" \
       -not -path "*/.venv/*" \
       -not -path "*/__pycache__/*" \
-      2>/dev/null | head -50 | while read -r f; do
+      2>/dev/null | awk 'NR <= 50' | while read -r f; do
       echo "FILE: ${f}"
     done
   fi
@@ -89,4 +90,10 @@ for f, syms in sorted(by_file.items()):
   printf '# root: %s\n' "${ROOT}"
   printf '%s\n' "---"
   collect_symbols "${ROOT}"
-} | head -c "${MAX_CHARS}"
+} | python3 -c '
+import sys
+remaining = int(sys.argv[1])
+for line in sys.stdin:
+    sys.stdout.write(line[:remaining])
+    remaining = max(0, remaining - len(line))
+' "${MAX_CHARS}"

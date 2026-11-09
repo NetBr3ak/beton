@@ -16,11 +16,7 @@ case "${FILE##*.}" in
     ;;
   ts|tsx|js|jsx|mjs|cjs)
     if command -v eslint &>/dev/null; then
-      # exit 1 = lint errors; exit 2 = config/fatal (no config → skip)
-      # Use || to prevent set -e from firing on non-zero exit
-      JS_EXIT=0
-      OUT=$(eslint "${FILE}" 2>&1) || JS_EXIT=$?
-      [ "${JS_EXIT}" -eq 1 ] && { echo "${OUT}"; exit 1; }
+      exec eslint "${FILE}"
     fi
     ;;
   rs)

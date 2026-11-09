@@ -29,7 +29,10 @@ EVENT=$(cat 2>/dev/null || true)
 
 # Hand the event to the Python evaluator. It prints either nothing (allow)
 # or a JSON block decision. We forward whatever it prints.
-RESULT=$(printf '%s' "${EVENT}" | python3 "${PLUGIN_ROOT}/hooks/_guard_eval.py" 2>/dev/null || true)
+if ! RESULT=$(printf '%s' "${EVENT}" | python3 "${PLUGIN_ROOT}/hooks/_guard_eval.py"); then
+  echo "BETON guard evaluator failed; refusing the tool call." >&2
+  exit 2
+fi
 
 if [ -z "${RESULT}" ]; then
   exit 0

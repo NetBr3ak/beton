@@ -51,7 +51,8 @@ _stage() {
   local label="$1" t="$2" script="$3"
   local exit_code=0 out
   out=$(_timeout "$t" bash "${script}" "${FILE_PATH}" 2>&1) || exit_code=$?
-  if [ "$exit_code" -ne 0 ] && [ -n "$out" ]; then
+  if [ "$exit_code" -ne 0 ]; then
+    [ -n "$out" ] || out="Verifier exited with status ${exit_code} (no output)."
     ERRORS+=("${label}:\n${out}")
   fi
 }
@@ -99,6 +100,10 @@ import json, sys
 print(json.dumps({
     'decision': 'block',
     'reason': sys.argv[1] + ': verifier errors. Fix before proceeding.',
-    'additionalContext': 'BETON VERIFIER ERRORS:\n' + sys.argv[2]
+    'additionalContext': 'BETON VERIFIER ERRORS:\n' + sys.argv[2],
+    'hookSpecificOutput': {
+        'hookEventName': 'PostToolUse',
+        'additionalContext': 'BETON VERIFIER ERRORS:\n' + sys.argv[2]
+    }
 }))
 " "${FILE_PATH}" "${COMBINED}"

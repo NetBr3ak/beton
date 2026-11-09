@@ -8,6 +8,7 @@ FILE="${1:-}"
 DRY_RUN="${2:-}"
 [ -z "${FILE}" ] && exit 0
 
+FILE="$(cd "$(dirname "$FILE")" && pwd)/$(basename "$FILE")"
 EXT="${FILE##*.}"
 BASENAME=$(basename "${FILE%.*}")
 
@@ -26,7 +27,7 @@ find_project_root() {
     for marker in pyproject.toml setup.py setup.cfg package.json Cargo.toml go.mod; do
       [ -f "$d/$marker" ] && { echo "$d"; return; }
     done
-    [ -d "$d/.git" ] && { echo "$d"; return; }
+    [ -e "$d/.git" ] && { echo "$d"; return; }
     d=$(dirname "$d")
   done
   # No marker / no .git: fall back to grandparent of the file (preserves
@@ -45,6 +46,9 @@ discover_tests() {
   file_dir="$(dirname "$FILE")"
   local d="$file_dir"
   local found=()
+  case "$(basename "$FILE")" in
+    test_*|*_test.*|*.test.*|*.spec.*) found+=("$FILE") ;;
+  esac
   local patterns=(
     "test_${BASENAME}.${EXT}"
     "${BASENAME}_test.${EXT}"
@@ -81,16 +85,22 @@ if [ "${DRY_RUN}" = "--dry-run" ]; then
   exit 0
 fi
 
+TEST_ARGS=()
+while IFS= read -r test_file; do
+  TEST_ARGS+=("$test_file")
+done <<< "$TEST_FILES"
+cd "$PROJECT_ROOT"
+
 case "${EXT}" in
   py)
     command -v pytest &>/dev/null && \
-      { _timeout "${TIMEOUT}" pytest ${TEST_FILES} --tb=short -q; exit $?; }
+      { _timeout "${TIMEOUT}" pytest "${TEST_ARGS[@]}" --tb=short -q; exit $?; }
     ;;
   ts|tsx|js|jsx|mjs)
     if command -v bun &>/dev/null; then
-      _timeout "${TIMEOUT}" bun test ${TEST_FILES}; exit $?
+      _timeout "${TIMEOUT}" bun test "${TEST_ARGS[@]}"; exit $?
     elif command -v npx &>/dev/null; then
-      _timeout "${TIMEOUT}" npx vitest run ${TEST_FILES}; exit $?
+      _timeout "${TIMEOUT}" npx --no-install vitest run "${TEST_ARGS[@]}"; exit $?
     fi
     ;;
   rs)

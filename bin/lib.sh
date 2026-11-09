@@ -12,12 +12,12 @@ beton_mode() {
   local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/beton/config.json"
   if [ -f "$cfg" ]; then
     mode=$(python3 -c "
-import json
+import json, sys
 try:
-    print(json.load(open('${cfg}')).get('mode', '').lower())
+    print(json.load(open(sys.argv[1])).get('mode', '').lower())
 except Exception:
     print('')
-" 2>/dev/null)
+" "$cfg" 2>/dev/null)
     case "$mode" in strict|off) echo "$mode"; return ;; esac
   fi
 
