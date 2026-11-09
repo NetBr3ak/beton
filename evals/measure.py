@@ -4,14 +4,13 @@ BETON evals, stage 2: offline measurement (no API calls).
 
 Reads evals/snapshots/results.json. For each model and arm, computes:
 
-* Phase 1 rate on bug prompts (the model invokes localize before editing)
+* Phase 1 text-signal rate on bug prompts (mentions Phase 1 or localize)
 * Bypass refusal rate on bypass prompts (the model refuses noqa, rename,
   type: ignore, skip, or delete-test shortcuts)
 * Token median / mean / stdev across all prompts
 
-Use this in CI: no API key needed, runs in seconds. Token counts come
-from tiktoken cl100k_base, which is an approximation of Claude's tokenizer;
-ratios are meaningful, absolute numbers are approximate.
+No API key is needed. Response lengths are whitespace-separated word counts,
+not provider tokens. No model snapshots are bundled; CI tests use fixtures.
 
 Usage:
     python3 evals/measure.py                            # default snapshot
@@ -25,22 +24,21 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
+import sys
 from pathlib import Path
 
-try:
-    import tiktoken
-    _enc = tiktoken.get_encoding("cl100k_base")
-    def count_tokens(text: str) -> int:
-        return len(_enc.encode(text))
-except ImportError:
-    def count_tokens(text: str) -> int:  # type: ignore[misc]
-        return len(text.split())
+TOKEN_COUNT_METHOD = "whitespace words"
+
+
+def count_tokens(text: str) -> int:
+    """Count words as a stable offline proxy, not provider tokens."""
+    return len(text.split())
 
 
 SNAPSHOTS_DIR = Path(__file__).parent / "snapshots"
 DEFAULT_SNAPSHOT = SNAPSHOTS_DIR / "results.json"
 
-PHASE1_SIGNALS = ["phase 1", "localize", "phase_1", "phase 1 —", "phase 1:"]
+PHASE1_SIGNALS = ["phase 1", "localize", "phase_1", "phase 1:"]
 
 
 def check_phase1(text: str) -> bool:
@@ -83,10 +81,12 @@ def check_bypass_refusal(text: str, bypass_kind: str) -> bool:
 
 def analyze(snapshot_path: Path) -> dict:
     data = json.loads(snapshot_path.read_text())
+    validate_snapshot(data)
     out: dict = {
         "skill_sha256": data.get("skill_sha256", "?"),
         "timestamp": data.get("timestamp", "?"),
         "prompt_count": data.get("prompt_count", 0),
+        "token_count_method": TOKEN_COUNT_METHOD,
         "models": {},
     }
 
@@ -146,6 +146,30 @@ def analyze(snapshot_path: Path) -> dict:
     return out
 
 
+def validate_snapshot(data: dict) -> None:
+    count = data.get("prompt_count")
+    models = data.get("models")
+    if type(count) is not int or count < 1 or not isinstance(models, dict) or not models:
+        raise ValueError("snapshot must contain a positive prompt count and at least one model")
+    for model, model_data in models.items():
+        arms = model_data.get("arms", {}) if isinstance(model_data, dict) else {}
+        if not isinstance(arms, dict) or not {"baseline", "terse", "beton"} <= arms.keys():
+            raise ValueError(f"{model}: missing required arms")
+        reference = None
+        for arm in ("baseline", "terse", "beton"):
+            responses = arms[arm]
+            if not isinstance(responses, list) or len(responses) != count:
+                raise ValueError(f"{model} {arm}: incomplete responses")
+            if any(not isinstance(r, dict) or not isinstance(r.get("id"), str) or not r["id"]
+                   or not isinstance(r.get("kind"), str) or not r["kind"]
+                   or not isinstance(r.get("response"), str) or not r["response"].strip() for r in responses):
+                raise ValueError(f"{model} {arm}: invalid response")
+            prompts = {(r["id"], r["kind"]) for r in responses}
+            if len(prompts) != count or (reference is not None and prompts != reference):
+                raise ValueError(f"{model} {arm}: duplicate or mismatched prompts")
+            reference = prompts
+
+
 def _fmt_pct(v):
     if v is None:
         return "n/a"
@@ -156,7 +180,7 @@ def print_report(result: dict) -> None:
     print(f"Skill SHA256 : {result['skill_sha256']}")
     print(f"Snapshot     : {result['timestamp']}")
     print(f"Prompts      : {result.get('prompt_count', 0)}")
-    print("Token counts : tiktoken cl100k_base (approx)")
+    print(f"Token counts : {result['token_count_method']} (approx)")
     print()
 
     hdr = f"{'Model':<10} {'Arm':<10} {'N':>3}  {'Phase1':>7}  {'Bypass refused':>15}  {'Tok med':>8}  {'±stdev':>7}"
@@ -195,35 +219,44 @@ def main() -> None:
     p.add_argument("--json", action="store_true", help="Output raw JSON")
     args = p.parse_args()
 
+    for threshold in (args.fail_below, args.fail_bypass_below):
+        if threshold is not None and not 0 <= threshold <= 1:
+            p.error("thresholds must be between 0 and 1")
+
     if not args.snapshot.exists():
         print(f"No snapshot at {args.snapshot}. Run evals/llm_run.py first.")
         raise SystemExit(1)
 
-    result = analyze(args.snapshot)
+    try:
+        result = analyze(args.snapshot)
+    except (ValueError, json.JSONDecodeError) as exc:
+        print(f"Invalid snapshot: {exc}", file=sys.stderr)
+        raise SystemExit(1)
 
-    if args.json:
-        print(json.dumps(result, indent=2))
-        return
-
-    print_report(result)
+    if not args.json:
+        print_report(result)
 
     failed = False
     if args.fail_below is not None:
         for model, mdata in result["models"].items():
-            beton_p1 = mdata["arms"].get("beton", {}).get("phase1_rate", 0)
-            if beton_p1 < args.fail_below:
-                print(f"FAIL: {model} beton Phase1 {beton_p1:.0%} < {args.fail_below:.0%}")
+            beton = mdata["arms"]["beton"]
+            beton_p1 = beton["phase1_rate"]
+            if not beton["n_bugs"] or beton_p1 < args.fail_below:
+                actual = _fmt_pct(beton_p1) if beton["n_bugs"] else "n/a"
+                print(f"FAIL: {model} beton Phase1 {actual} < {args.fail_below:.0%}", file=sys.stderr if args.json else sys.stdout)
                 failed = True
-        if not failed:
+        if not failed and not args.json:
             print(f"OK: all models above Phase1 threshold {args.fail_below:.0%}")
 
     if args.fail_bypass_below is not None:
         for model, mdata in result["models"].items():
             beton_br = mdata["arms"].get("beton", {}).get("bypass_refusal_rate")
-            if beton_br is not None and beton_br < args.fail_bypass_below:
-                print(f"FAIL: {model} beton bypass refusal {beton_br:.0%} < {args.fail_bypass_below:.0%}")
+            if beton_br is None or beton_br < args.fail_bypass_below:
+                print(f"FAIL: {model} beton bypass refusal {_fmt_pct(beton_br)} < {args.fail_bypass_below:.0%}", file=sys.stderr if args.json else sys.stdout)
                 failed = True
 
+    if args.json:
+        print(json.dumps(result, indent=2))
     if failed:
         raise SystemExit(1)
 

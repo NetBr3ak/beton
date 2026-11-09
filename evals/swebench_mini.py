@@ -53,6 +53,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -100,8 +101,8 @@ def write_scenario(scenario: dict, work_dir: Path) -> None:
         target.write_text(content)
 
 
-def run_pytest(work_dir: Path, kexpr: str | None = None, timeout: int = 30) -> tuple[bool, str]:
-    """Returns (passed, output). passed=True iff exit 0."""
+def run_pytest_status(work_dir: Path, kexpr: str | None = None, timeout: int = 30) -> tuple[int, str]:
+    """Return the pytest exit status and output, or -1 if it could not run."""
     # Inject conftest.py so `from src.foo import bar` resolves without
     # requiring scenarios to ship __init__.py files.
     conftest = work_dir / "conftest.py"
@@ -118,11 +119,16 @@ def run_pytest(work_dir: Path, kexpr: str | None = None, timeout: int = 30) -> t
         r = subprocess.run(
             cmd, cwd=str(work_dir), capture_output=True, text=True, timeout=timeout
         )
-        return r.returncode == 0, (r.stdout + r.stderr)[-2000:]
+        return r.returncode, (r.stdout + r.stderr)[-2000:]
     except subprocess.TimeoutExpired:
-        return False, "TIMEOUT"
+        return -1, "TIMEOUT"
     except FileNotFoundError:
-        return False, "pytest not installed"
+        return -1, "pytest not installed"
+
+
+def run_pytest(work_dir: Path, kexpr: str | None = None, timeout: int = 30) -> tuple[bool, str]:
+    status, output = run_pytest_status(work_dir, kexpr, timeout)
+    return status == 0, output
 
 
 def build_prompt(scenario: dict) -> str:
@@ -157,18 +163,21 @@ PATCH_RE = re.compile(
 )
 
 
-def apply_response(response: str, work_dir: Path) -> list[str]:
+def apply_response(response: str, work_dir: Path, allowed_files: Iterable[str] | None = None) -> list[str]:
     """Parse fenced `file=PATH` blocks and overwrite those files inside work_dir.
 
-    Paths that try to escape work_dir via `..` segments or absolute paths
-    are skipped. A model can return whatever it wants in its response; the
-    harness shouldn't let a stray response write to /etc/passwd, the user's
-    home, or anywhere outside the temp directory we materialized.
+    Only allowed source paths can be overwritten. The optional default keeps
+    compatibility for callers that materialized a source tree under src/.
     """
     touched: list[str] = []
     safe_root = work_dir.resolve()
+    if allowed_files is None:
+        allowed_files = [str(p.relative_to(work_dir)) for p in (work_dir / "src").rglob("*.py") if p.is_file()]
+    allowed = set(allowed_files)
     for m in PATCH_RE.finditer(response):
         rel = m.group(1).strip()
+        if rel not in allowed:
+            continue
         content = m.group(2)
         candidate = (work_dir / rel).resolve()
         try:
@@ -213,7 +222,8 @@ def evaluate_scenario(
         msg = _call_with_retry(client, **kwargs)
         response = msg.content[0].text if hasattr(msg.content[0], "text") else ""
 
-        touched = apply_response(response, work)
+        allowed = set(scenario["files"]) - set(scenario.get("tests", {})) - {"conftest.py"}
+        touched = apply_response(response, work, allowed)
         kexpr = scenario.get("expected_passing_after_fix", "")
         ok, output = run_pytest(work, kexpr=kexpr if kexpr else None)
         return {
@@ -253,17 +263,21 @@ def main() -> None:
 
     if args.dry_run:
         # Verify each scenario's pytest expression actually fails on the buggy code.
+        failed = not scenarios
         for s in scenarios:
             work = Path(tempfile.mkdtemp(prefix=f"swebench_dry_{s['id']}_"))
             try:
                 write_scenario(s, work)
-                ok, out = run_pytest(work, kexpr=s.get("expected_passing_after_fix") or None)
-                status = "FAIL (expected)" if not ok else "PASS (unexpected!)"
-                print(f"{s['id']:<20} {status}")
-                if ok:
-                    print("  scenario does not fail on the buggy code; the fix oracle is wrong")
+                code, out = run_pytest_status(work, kexpr=s.get("expected_passing_after_fix") or None)
+                expected = code == 1 and bool(re.search(r"\b\d+ failed\b", out)) and not re.search(r"\b\d+ errors?\b", out)
+                print(f"{s['id']:<20} {'FAIL (expected)' if expected else 'INVALID (unexpected!)'}")
+                if not expected:
+                    failed = True
+                    print(f"  pytest exit {code}: {out}")
             finally:
                 shutil.rmtree(work, ignore_errors=True)
+        if failed:
+            raise SystemExit(1)
         return
 
     try:
