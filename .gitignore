@@ -7,3 +7,6 @@ __pycache__/
 .remember/
 evals/snapshots/results-*.json
 evals/snapshots/swebench-*.json
+
+.venv/
+.pytest_cache/

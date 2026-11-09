@@ -5,9 +5,15 @@ on:
     branches: [master]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -21,19 +27,8 @@ jobs:
 
       - name: Install verifier tools
         run: |
-          python -m pip install --upgrade pip
-          pip install ruff mypy pytest pyyaml
+          python -m pip install ruff mypy pytest pyyaml
           npm install -g eslint typescript
 
-      - name: Make scripts executable
-        run: |
-          chmod +x hooks/*.sh bin/* tests/*.sh
-
-      - name: Run test suite
-        run: |
-          fail=0
-          for t in tests/test-*.sh; do
-            echo "=== $t ==="
-            bash "$t" || fail=1
-          done
-          exit $fail
+      - name: Run offline gate
+        run: bash scripts/check.sh
