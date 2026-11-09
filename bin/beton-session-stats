@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Session diagnostics for a Claude Code project: cache hit rate, token usage, cost estimate."""
+"""Session diagnostics for a Claude Code project: cache hit rate, token usage."""
 
 import argparse
 import json
@@ -7,18 +7,11 @@ import sys
 from pathlib import Path
 
 
-# Pricing per 1M tokens (claude-sonnet-4-6)
-PRICE_INPUT = 3.00
-PRICE_OUTPUT = 15.00
-PRICE_CACHE_CREATE = 3.75
-PRICE_CACHE_READ = 0.30
-
-
 def project_hash(path: str) -> str:
     """Convert project path to ~/.claude/projects/ directory name.
 
     Claude Code replaces every '/' with '-', including the leading one,
-    so /Users/q/foo → -Users-q-foo  (leading dash is kept).
+    A leading separator becomes a leading dash.
     """
     return Path(path).resolve().as_posix().replace("/", "-")
 
@@ -70,31 +63,13 @@ def parse_session(jsonl_path: Path) -> dict:
 
 def compute_metrics(totals: dict) -> dict:
     inp = totals["input"]
-    out = totals["output"]
     cc = totals["cache_creation"]
     cr = totals["cache_read"]
 
     total_input_tokens = inp + cc + cr
     cache_hit_rate = (cr / total_input_tokens * 100) if total_input_tokens > 0 else 0.0
 
-    actual_cost = (
-        inp * PRICE_INPUT / 1_000_000
-        + out * PRICE_OUTPUT / 1_000_000
-        + cc * PRICE_CACHE_CREATE / 1_000_000
-        + cr * PRICE_CACHE_READ / 1_000_000
-    )
-    naive_cost = (
-        total_input_tokens * PRICE_INPUT / 1_000_000
-        + out * PRICE_OUTPUT / 1_000_000
-    )
-    savings_pct = ((naive_cost - actual_cost) / naive_cost * 100) if naive_cost > 0 else 0.0
-
-    return {
-        "cache_hit_rate": cache_hit_rate,
-        "actual_cost": actual_cost,
-        "naive_cost": naive_cost,
-        "savings_pct": savings_pct,
-    }
+    return {"cache_hit_rate": cache_hit_rate}
 
 
 def print_report(project_path: str, sessions_found: int, sessions_requested: int, totals: dict) -> None:
@@ -106,33 +81,24 @@ def print_report(project_path: str, sessions_found: int, sessions_requested: int
     has_breakdown = (c5 + c1) > 0
     pct_1h = (c1 / cc * 100) if cc > 0 else 0.0
 
-    print(f"\nSession stats")
+    print("\nSession stats")
     print(f"Project: {project_path}")
     print(f"Sessions analyzed: {sessions_found} (last {sessions_requested} requested)")
     print()
     print("Token breakdown:")
     print(f"  Input (uncached):    {totals['input']:>12,}  tokens")
-    print(f"  Cache creation:      {cc:>12,}  tokens  (write cost: 1.25x for 5m, 2.0x for 1h)")
+    print(f"  Cache creation:      {cc:>12,}  tokens")
     if has_breakdown:
         print(f"    └─ ephemeral_5m:   {c5:>12,}  tokens")
         print(f"    └─ ephemeral_1h:   {c1:>12,}  tokens  ({pct_1h:.0f}% of writes)")
-    print(f"  Cache read:          {totals['cache_read']:>12,}  tokens  (read cost: 0.10x)")
+    print(f"  Cache read:          {totals['cache_read']:>12,}  tokens")
     print(f"  Output:              {totals['output']:>12,}  tokens")
     print()
     print(f"Cache hit rate: {m['cache_hit_rate']:.1f}%")
-    if has_breakdown and cc > 0 and pct_1h < 30:
-        print(f"  ⚠  1h-tier writes are only {pct_1h:.0f}% of cache creation.")
-        print(f"     If you set ttl: 3600 explicitly and still see this, telemetry may be disabled")
-        print(f"     (kills 1h TTL) or your prefix changes too often to amortize the 2x write cost.")
-    print()
-    print("Cost estimate:")
-    print(f"  Actual:    ${m['actual_cost']:.4f}")
-    print(f"  Naive:     ${m['naive_cost']:.4f}  (no caching)")
-    print(f"  Savings:   {m['savings_pct']:.1f}%")
     print()
 
 
-def scan_project(project_path: str, sessions_n: int) -> tuple[dict, int]:
+def scan_project(project_path: str, sessions_n: int) -> tuple[dict | None, int]:
     """Returns (aggregated totals, files_found)."""
     hash_dir = Path.home() / ".claude" / "projects" / project_hash(project_path)
     if not hash_dir.exists():
@@ -155,7 +121,7 @@ def scan_project(project_path: str, sessions_n: int) -> tuple[dict, int]:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Session diagnostics for a Claude Code project: cache hit rate, token usage, cost estimate."
+        description="Session diagnostics for a Claude Code project: cache hit rate, token usage."
     )
     parser.add_argument(
         "--project",

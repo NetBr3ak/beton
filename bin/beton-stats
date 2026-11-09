@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-beton-stats: rolling 24h counters for the verifier and bypass guard.
+beton-stats: daily counters for the verifier and bypass guard.
 
 Storage: ~/.claude/.beton-stats.json. Schema:
   {
