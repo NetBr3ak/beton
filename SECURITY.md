@@ -1,39 +1,21 @@
-# Security Policy
+# Security policy
 
-## Supported versions
+## Supported version
 
-| Version | Supported |
-|---------|-----------|
-| 0.5.x   | ✓ |
-| < 0.5   | ✗ |
+The current plugin manifest declares version `0.1.0`. Report issues against the current default branch. No response or patch deadline is promised.
 
 ## Reporting a vulnerability
 
-If you find a security issue (sandbox escape, hook injection, credential leak via stats files, etc.), please report it privately rather than opening a public issue.
+Use [GitHub private vulnerability reporting](https://github.com/NetBr3ak/beton/security/advisories/new) if the repository enables it. If that option is unavailable, open an issue asking for a private reporting channel. Do not include exploit details, credentials or private source in a public issue.
 
-Email: [address removed]
-
-Include:
-
-- A description of the issue
-- Steps to reproduce
-- Affected version and platform
-- A suggested fix if you have one
-
-I'll acknowledge within 72 hours and aim to ship a patch within two weeks for confirmed issues. Once a patch ships, I'll publish the disclosure in the changelog.
+Include the affected version, platform, steps to reproduce and expected behavior.
 
 ## Threat model
 
-BETON is a Claude Code plugin. It runs lint, typecheck, and tests against files the user authorizes Claude to edit. The threat model assumes:
+BETON runs project checkers with the permissions of the user running Claude Code. Linters, test runners, plugins and project configuration can execute code. Use it only with projects and tools you trust.
 
-- The human running Claude Code is the trusted actor.
-- The LLM is semi-trusted. It might make mistakes, hallucinate paths, or attempt shortcuts, but it isn't actively trying to compromise the host.
-- The eval scripts (`evals/llm_run.py`, `evals/swebench_mini.py`) accept model responses as input and write to temp directories. Path-traversal protection is in place; treat any unexpected file write outside the work directory as a security issue worth reporting.
+The bypass guard detects listed patterns. It is not a sandbox and cannot prevent all test weakening or shell-based edits. Post-edit verification does not roll back changes.
 
-Stats and state files live under `~/.claude/`. They contain counters and the path of the last edited file. They do not contain code, credentials, or secrets.
+The optional eval harness restricts model file replacements to scenario sources and checks path containment. Running model-generated Python still executes untrusted code. Run API experiments in a disposable isolated environment without host credentials or private files. A temporary directory alone is not isolation.
 
-## Out of scope
-
-- Adversarial LLM behavior beyond the documented bypass patterns (the guard is a whitelist; see "What this isn't" in the README).
-- Issues in third-party tools BETON shells out to (ruff, mypy, eslint, etc.). Report those upstream.
-- Vulnerabilities in dependencies of `evals/llm_run.py` (the `anthropic` Python SDK). Report to Anthropic.
+State and counters live under `~/.claude/`. The state includes the last edited file path. Do not publish these files or Claude session logs.

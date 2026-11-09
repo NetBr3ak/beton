@@ -1,11 +1,11 @@
 """Tiny Flask app with one planted bug.
 
-The planted bug is the comparison on line 13: `<=` accepts a token whose
+The planted bug is the comparison in is_token_valid: `<=` accepts a token whose
 expiry equals the current second as still valid. The fix is to tighten
 it to `<` so an expiry-at-now timestamp counts as expired.
 
-`tests/test_app.py::test_expired_token_rejected` is the regression test
-that catches it.
+The existing tests do not cover equality at expiry. Add that regression
+test before fixing the comparison.
 """
 from flask import Flask, request, jsonify
 

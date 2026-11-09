@@ -3,260 +3,128 @@
 [![tests](https://github.com/NetBr3ak/beton/actions/workflows/tests.yml/badge.svg)](https://github.com/NetBr3ak/beton/actions/workflows/tests.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Read this in English: [README.md](README.md)
+[English](README.md)
 
-BETON to plugin do Claude Code. Po każdym `Write`, `Edit` lub `MultiEdit` uruchamia lint, typecheck i testy dla zmienionego kodu. Gdy sprawdzenie się nie powiedzie, BETON blokuje wywołanie narzędzia i odsyła błąd do Claude.
+BETON to plugin do Claude Code. Po `Write`, `Edit` i `MultiEdit` uruchamia lint, kontrolę typów i powiązane testy. Zwraca błędy do Claude, aby kolejna zmiana mogła je naprawić. Osobna kontrola odrzuca skróty, takie jak `# noqa`, `@ts-ignore` i pomijanie testów, przed wykonaniem narzędzia.
 
-Claude często sięga po skrót zamiast prawdziwej naprawy: dodaje `# noqa`, `@ts-ignore`, `pytest.mark.skip`, albo zmienia nazwę niedziałającego testu. BETON blokuje takie skróty na poziomie `PreToolUse`. Prompt skilla i warstwa hooków wymuszają tę samą zasadę.
-
-To cały produkt. Bez notacji, bez własnego języka (DSL).
-
-## Jak edycja przechodzi przez BETON
+Kontrola po edycji nie cofa zapisu ani mu nie zapobiega. Testy dobiera według nazw plików, nie grafu zależności. Pomija brakujące narzędzia. BETON przekazuje wyniki kontroli, ale nie jest izolacją bezpieczeństwa ani dowodem poprawności zmiany.
 
 ```mermaid
-flowchart TD
-    A["Claude calls a tool"]:::entry
-
-    subgraph PRE ["PreToolUse: bypass guard"]
-        direction TB
-        B{"Bypass pattern<br/>in the edit?"}:::decision
-        R["Refuse"]:::block
-        B -- "noqa, ts-ignore,<br/>skip markers,<br/>rm/mv test files" --> R
-    end
-
-    subgraph POST ["PostToolUse: verifier chain"]
-        direction TB
-        L["Lint"]:::stage --> T["Typecheck"]:::stage --> P["Run affected tests"]:::stage
-        L -. "errors" .-> X["Block"]:::block
-        T -. "errors" .-> X
-        P -. "fail" .-> X
-        P -- "pass" --> K["Pass"]:::ok
-    end
-
-    A --> B
-    B -- "clean" --> C["Tool executes"]:::neutral
-    C --> L
-
-    R --> S["Statusline + stats counter"]:::neutral
-    X --> S
-    K --> S
-
-    classDef entry fill:#dbeafe,stroke:#1e40af,color:#1e3a8a
-    classDef decision fill:#fef3c7,stroke:#a16207,color:#713f12
-    classDef block fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d
-    classDef ok fill:#dcfce7,stroke:#15803d,color:#14532d
-    classDef stage fill:#ffffff,stroke:#475569,color:#0f172a
-    classDef neutral fill:#f1f5f9,stroke:#475569,color:#0f172a
+flowchart LR
+    A[Planowana edycja] --> B{Znany skrót?}
+    B -->|tak| C[Odmowa przed wykonaniem]
+    B -->|nie| D[Zapis pliku]
+    D --> E[Lint]
+    E -->|sukces| F[Kontrola typów]
+    F -->|sukces| G[Powiązane testy]
+    E -->|błąd| H[Zwrot błędu do Claude]
+    F -->|błąd| H
+    G -->|błąd| H
 ```
 
-BETON ma dwie warstwy hooków, obie wymuszają tę samą zasadę. `PreToolUse` odmawia skrótów, zanim trafią do kodu. `PostToolUse` uruchamia właściwe sprawdzenia po edycji. Każdy wynik (odmowa, blokada, czysty przebieg) aktualizuje licznik statystyk, a pasek statusu go pokazuje.
-
 ## Instalacja
+
+Wymagane są Bash, Python od wersji 3.11, Node.js i Claude Code z obsługą pluginów. Narzędzia sprawdzające projekt instalujesz osobno. BETON ich nie pobiera.
 
 ```bash
 claude plugin marketplace add https://github.com/NetBr3ak/beton
 claude plugin install beton@beton
 ```
 
-Z lokalnego klonu repozytorium:
+Po instalacji uruchom Claude Code ponownie. Z lokalnego klonu użyj `claude plugin marketplace add "$PWD"` zamiast adresu URL. Zobacz [instrukcję pluginów Claude Code](https://code.claude.com/docs/en/discover-plugins).
+
+Odinstalowanie z domyślnego zakresu użytkownika:
 
 ```bash
-claude plugin marketplace add /path/to/beton
-claude plugin install beton@beton
+claude plugin uninstall beton@beton
+claude plugin marketplace remove beton
 ```
 
-## Macierz narzędzi sprawdzających
+Jeśli instalacja miała zakres projektu lub lokalny, podaj ten sam `--scope` przy odinstalowaniu. Liczniki i stan ostatniego pliku w `~/.claude/` pozostają. Osobno usuń ręczną konfigurację paska stanu. Te polecenia nie zmieniają źródeł projektu.
 
-| Język            | Lint              | Typecheck       | Testy              |
-|-----------------|-------------------|-----------------|--------------------|
-| Python          | ruff lub flake8   | mypy lub pyright | pytest             |
-| TypeScript / JS | eslint            | tsc             | bun test lub vitest |
-| Rust            | clippy            | clippy          | cargo test         |
-| Go              | staticcheck       | go vet          |                    |
+## Kontrole
 
-Gdy brakuje danego narzędzia, BETON pomija ten krok. Nigdy nie blokuje pliku o nieznanym rozszerzeniu. Jeśli nie masz zainstalowanego narzędzia, BETON milczy przy edycjach, które go wymagają.
+| Język | Lint | Kontrola typów | Testy |
+|---|---|---|---|
+| Python | ruff, w drugiej kolejności flake8 | mypy, w drugiej kolejności pyright | pytest |
+| TypeScript | eslint | tsc z pobliskim tsconfig.json | bun test, w drugiej kolejności lokalny vitest |
+| JavaScript | eslint | Brak | bun test, w drugiej kolejności lokalny vitest |
+| Rust | cargo clippy w głównym katalogu repo z Cargo.toml | W clippy | cargo test, gdy znajdzie pasujące pliki testów |
+| Go | staticcheck | go vet | Brak |
+
+Dla Pythona zainstaluj `python3 -m pip install ruff mypy pytest`. Dla TypeScript zainstaluj i skonfiguruj ESLint, TypeScript oraz narzędzie testujące w projekcie. Błąd konfiguracji zainstalowanego narzędzia jest błędem kontroli.
+
+Nazwy testów muszą pasować do `test_NAME.EXT`, `NAME_test.EXT`, `NAME.test.EXT` lub `NAME.spec.EXT`. Edycja takiego pliku uruchamia ten plik. Wyszukiwanie kończy się przy najbliższym znaczniku projektu lub katalogu Git. Hook po edycji uruchamia testy tylko w drzewie roboczym Git. Nie uruchamia całego zestawu po każdej edycji i nie sprawdza zapisów przez Bash.
+
+## Ochrona testów i usuwanie kodu
+
+Kontrola szuka w nowym tekście znaczników wyciszania błędów, pomijania testów i wyboru pojedynczego testu. Sprawdza też polecenia Bash usuwające lub przenoszące pliki o nazwach testów. Analizuje tekst i składnię. Nie zapewnia pełnej ochrony przed agentem, który celowo omija reguły.
+
+Usuwanie testów Pythona ma wąski wyjątek:
+
+- Proste `rm source.py test_source.py` jest dozwolone, gdy test bezpośrednio importuje i używa usuwanego źródła. Usunięcie niepowiązanego źródła nie wystarcza. Testy używające również zachowanego źródła pozostają chronione.
+- Aby usunąć funkcję testową, najpierw usuń bezpośrednio importowaną definicję źródłową. Kontrola porównuje definicje z Git `HEAD`. Potem usuń test przez `Edit`, `Write` lub `MultiEdit` w tej samej niezatwierdzonej zmianie.
+- Usunięcie samego testu lub zmiana jego nazwy bez usunięcia źródła są odrzucane.
+
+Wyjątek obsługuje importy `from module import symbol` na poziomie modułu i funkcje lub metody Pythona o nazwach `test_*`. Nie rozwiązuje importów względnych, pośrednich fixtures, innych języków ani złożonych poleceń usuwania. Takie przypadki sprawdź sam przed wyłączeniem ochrony.
+
+Wyłączenie samej kontroli skrótów dla sesji Claude Code:
 
 ```bash
-pip install ruff mypy pytest
-npm install -g eslint typescript
-brew install universal-ctags  # opcjonalnie, poprawia działanie repo-map
+BETON_BYPASS_GUARD=off claude
 ```
 
-## Demo
+`BETON_MODE=off claude` wyłącza oba hooki sprawdzające. Wyłączone hooki nie zapisują decyzji. Znacznik wyciszania błędu wewnątrz tekstu źródłowego może wywołać fałszywy alarm. Dokumenty i pliki danych mają wyjątek według rozszerzenia.
 
-`examples/buggy-flask/` to mała aplikacja Flask z jednym zaplanowanym błędem. Otwórz ten katalog w Claude Code i zapytaj:
+## Konfiguracja
 
-> There's an off-by-one in `is_token_valid`. Add a regression test that catches it, then fix it.
+| Zmienna środowiskowa | Domyślnie | Znaczenie |
+|---|---|---|
+| `BETON_MODE` | `strict` | `strict` lub `off` |
+| `BETON_BYPASS_GUARD` | `on` | `off` wyłącza kontrolę przed edycją |
+| `BETON_LINT_TIMEOUT` | `4` | Limit lint w sekundach |
+| `BETON_TC_TIMEOUT` | `5` | Limit kontroli typów w sekundach |
+| `BETON_TEST_TIMEOUT` | `8` | Limit testów w sekundach |
+| `BETON_VERIFY_TIMEOUT` | `8` | Starszy alias limitu testów |
+| `BETON_PAYLOAD_BUDGET` | `2400` | Limit znaków błędu przed dodaniem znaczników skrótu |
 
-Powinieneś zobaczyć: subagent localize analizuje kod, Claude pisze nowy test, weryfikator blokuje na niedziałającym teście, Claude wprowadza poprawkę, a pasek statusu zmienia się z `BETON ✗1` na `BETON ✓`. Pełny opis w [`examples/buggy-flask/README.md`](examples/buggy-flask/README.md) (po angielsku).
+Wartości pochodzą z `hooks/post-tool-verify.sh`. Łańcuch ogranicza też zewnętrzny limit hooka Claude Code. Samo zwiększenie limitów etapów go nie wydłuża. Każdy niezerowy kod narzędzia jest błędem, również przekroczenie czasu bez komunikatu.
 
-## Dla kogo jest BETON
+Tryb można zapisać w `$XDG_CONFIG_HOME/beton/config.json` lub `~/.config/beton/config.json` jako `{"mode":"off"}`. Poprawna wartość zmiennej środowiskowej ma pierwszeństwo.
 
-BETON pomoże ci, jeśli:
+## Umiejętności i narzędzia
 
-- Używasz Claude Code do realnych zmian w kodzie, nie tylko do pytań.
-- Twój projekt ma już skonfigurowane ruff, mypy, eslint lub podobne narzędzia.
-- Twoje testy łapią prawdziwe błędy, choćby czasami.
-- Złapałeś siebie albo asystenta AI na tłumieniu błędu zamiast jego naprawy.
-
-BETON niewiele ci da, jeśli:
-
-- Używasz Claude Code głównie do prototypów i jednorazowych skryptów.
-- Twój projekt nie ma lintera, sprawdzania typów ani testów.
-- Chcesz szybkiej rozmowy, a nie kontrolowanych zmian w kodzie.
-
-## Ochrona przed obchodzeniem sprawdzeń (bypass guard)
-
-Skill `beton-swebench` mówi Claude, żeby nie szukał skrótów. Strażnik `PreToolUse` wymusza tę zasadę. Odmawia tych wzorców, zanim edycja trafi do kodu:
-
-- Komentarze tłumiące błędy: `# noqa`, `# type: ignore`, `@ts-ignore`, `@ts-expect-error`, `eslint-disable`, `biome-ignore`, `prettier-ignore`, `# ruff: noqa`.
-- Znaczniki pomijania testów: `@pytest.mark.skip`, `@pytest.mark.xfail`, `@unittest.skip`, `it.skip`/`test.skip`/`describe.skip`, `.only` na funkcjach testowych.
-- Polecenia Bash, które robią `rm` lub `mv` na plikach testowych (`test_*.py`, `*_test.go`, `*.test.ts`, `*.spec.ts`).
-
-Każda odmowa wysyła do Claude blok JSON z dokładnym wzorcem, który ją wywołał. Jeśli naprawdę potrzebujesz tłumienia błędu (na przykład w starym kodzie albo przy fałszywym alarmie lintera), wyłącz strażnika dla tej edycji:
-
-```bash
-BETON_BYPASS_GUARD=off
-```
-
-Strażnik nigdy nie przepuszcza obejścia po cichu. Każdą decyzję zapisuje w `~/.claude/.beton-stats.json`.
-
-### Czym ten strażnik nie jest
-
-Strażnik to lista znanych wzorców obchodzenia sprawdzeń. To nie jest szczelna brama. Uparty model wciąż może ją obejść: użyć `# pylint: disable` zamiast `# noqa`, napisać `assert False` zamiast `@pytest.mark.skip`, albo zastąpić treść testu samym `pass`. Strażnik nie może uniemożliwić obchodzenia sprawdzeń. Podnosi koszt oczywistych obejść ponad koszt zwykłej naprawy błędu i pokazuje próby obejścia w statystykach. Traktuj go jako minimum bezpieczeństwa dla edycji robionych przez AI, nie jako pełną gwarancję.
-
-## Ustawienia
-
-| Zmienna                  | Domyślnie | Znaczenie                                   |
-|--------------------------|---------|--------------------------------------------|
-| `BETON_LINT_TIMEOUT`     | 4       | Krok lint, w sekundach                     |
-| `BETON_TC_TIMEOUT`       | 5       | Krok typecheck                             |
-| `BETON_TEST_TIMEOUT`     | 8       | Krok testów (domyślnie wraca do VERIFY_TIMEOUT) |
-| `BETON_VERIFY_TIMEOUT`   | 8       | Starszy alias dla kroku testów             |
-| `BETON_PAYLOAD_BUDGET`   | 2400    | Maksymalna liczba bajtów błędu wysyłanych do Claude |
-| `BETON_BYPASS_GUARD`     | `on`    | Ustaw `off`, żeby wyłączyć odmowy PreToolUse |
-| `BETON_MODE`             | strict  | `strict` (wymuszanie) albo `off` (wyłącza oba hooki) |
-
-`BETON_MODE` odczytuje też plik konfiguracyjny: `$XDG_CONFIG_HOME/beton/config.json` (albo `~/.config/beton/config.json`), plik JSON z kluczem `"mode"`. Zmienna środowiskowa ma pierwszeństwo przed plikiem konfiguracyjnym.
-
-## Skill: beton-swebench
-
-Ten skill ładuje się sam przy naprawach błędów, tracebackach i niedziałających testach. Wymusza trzy fazy, w kolejności. Claude nie może ich pominąć.
-
-```mermaid
-flowchart LR
-    I["Bug report,<br/>traceback, or<br/>failing test"]:::input --> P1["Phase 1<br/>Localize via subagent"]:::phase
-    P1 -- "low confidence" --> ASK["Stop, ask user<br/>for more context"]:::stop
-    P1 -- "located" --> P2["Phase 2<br/>Repro test +<br/>minimal fix"]:::phase
-    P2 --> E["Edit lands"]:::action
-    E -- "verifier blocks" --> P2
-    E -- "verifier clean" --> P3["Phase 3<br/>Validate against suite"]:::phase
-    P3 -- "repro + suite pass" --> D["Done"]:::ok
-    P3 -- "regression" --> P2
-
-    classDef input fill:#dbeafe,stroke:#1e40af,color:#1e3a8a
-    classDef phase fill:#fef3c7,stroke:#a16207,color:#713f12
-    classDef action fill:#ffffff,stroke:#475569,color:#0f172a
-    classDef stop fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d
-    classDef ok fill:#dcfce7,stroke:#15803d,color:#14532d
-```
-
-Źródło: Agentless (Xia et al., 2024).
-
-## Subagenci
-
-| Agent       | Zastosowanie                                                       |
-|-------------|--------------------------------------------------------------------|
-| `repo-map`  | Indeks symboli z limitem tokenów. Uruchom przed edycją nieznanego kodu. |
-| `localize`  | Ranking plików i funkcji na podstawie tracebacku albo zgłoszenia.  |
-
-Oba agenty domyślnie używają aliasu modelu `haiku`. Ten alias zawsze wskazuje na najnowszy model Haiku, a nie na jedną ustaloną wersję. Aby użyć innego modelu, zmień pole `model:` na górze pliku `agents/localize.md` albo `agents/repo-map.md`.
-
-## Komenda
-
-`/beton` pokazuje, które narzędzia sprawdzające są zainstalowane.
-
-## Pasek statusu
-
-Gdy plugin jest aktywny, pasek statusu pokazuje ostatni wynik weryfikatora oraz licznik z ostatnich 24 godzin:
-
-```
-BETON ✓
-BETON ✓ · 4 blocks 1 bypass refused
-BETON ✗2 · 4 blocks 1 bypass refused
-```
-
-Odznaka milczy, gdy danego dnia nic się nie wydarzyło. Nic się nie pokazuje, jeśli plugin jeszcze nie zadziałał.
-
-## Evals (testy jakości skilla)
-
-Pomiar jakości skilla odbywa się w dwóch etapach, żeby CI nie potrzebowało kluczy API.
-
-```bash
-# Etap 1: wywołanie API i zapis odpowiedzi modeli (uruchamiane raz, wynik trafia do repozytorium)
-python3 evals/llm_run.py
-
-# Etap 2: analiza zapisanych danych bez połączenia z API; uruchamiane w CI
-python3 evals/measure.py
-python3 evals/measure.py --fail-below 0.9 --fail-bypass-below 0.8
-```
-
-Zestaw promptów jest w `evals/prompts/en.json`. Zawiera 25 promptów z błędami: off-by-one, null-deref, async, config, type-coerce, regex, encoding i kilka ogólnych kategorii, plus 5 promptów sprawdzających obchodzenie sprawdzeń (noqa, zmiana nazwy, type-ignore, skip, usunięcie testu). Test porównuje skill z wariantem kontrolnym, który dostaje tylko krótką instrukcję, a nie z wariantem bez żadnego promptu systemowego. Dzięki temu widać wkład samego skilla, oddzielony od samej zwięzłości instrukcji.
-
-Każdy zapis (snapshot) zawiera hash SHA256 pliku `skills/beton-swebench/SKILL.md`. Dzięki temu wynik jest powiązany z dokładną wersją skilla, która go wygenerowała. Ponowne uruchomienie `evals/llm_run.py` tworzy nowy zapis w `evals/snapshots/`.
-
-`evals/swebench_mini.py` to test end-to-end mierzący skuteczność napraw. Każdy scenariusz w `evals/swebench_mini_scenarios.json` zawiera plik startowy z zaplanowanym błędem oraz test wzorcowy, który nie przechodzi na wadliwym kodzie. Uruchomienie buduje scenariusz, prosi model o pełną nową treść pliku i uruchamia pytest. Scenariusze są celowo małe (1-3 pliki) i sprawdzają, czy cały mechanizm działa. Prawdziwy pomiar skuteczności napraw wymaga pełnego SWE-bench-Verified na skalę całych repozytoriów. Szczegóły w `evals/README.md` (po angielsku).
-
-## Narzędzia pomocnicze
+`beton-swebench` instruuje Claude, aby zlokalizował błąd, odtworzył go, naprawił i sprawdził wynik. Hooki nie dowodzą wykonania tych faz. `localize` i `repo-map` to opcjonalni podagenci. `/beton` pokazuje dostępne narzędzia kontroli.
 
 ```bash
 bash bin/repo-map . --budget 1800
-python3 bin/beton-session-stats --project /path/to/project
-bin/beton-stats summary
+python3 bin/beton-session-stats --project "$PWD"
+python3 bin/beton-stats summary
 ```
 
-## Testy
+Narzędzie sesji odczytuje zużycie z lokalnych logów Claude Code. Nie jest rachunkiem dostawcy. Udział odczytu pamięci podręcznej dzieli liczbę tokenów z tego odczytu przez wszystkie tokeny wejściowe.
+
+`hooks/statusline.sh` pokazuje ostatni wynik i liczniki dzienne. Liczniki zerują się o lokalnej północy. Pasek stanu trzeba skonfigurować ręcznie w ustawieniach Claude Code. Obecne Claude Code ignoruje starsze pole `statusLine` w manifeście. Nie nadpisuj istniejącego paska. [Dokumentacja paska stanu](https://code.claude.com/docs/en/statusline) opisuje polecenie ze stałą ścieżką do klonu.
+
+## Demo i dowody
+
+[Demo Flask](examples/buggy-flask/README.md) zawiera celowy błąd granicy ważności tokenu. Nie jest benchmarkiem. Instrukcja pokazuje dodanie testu odtwarzającego błąd i jego naprawę.
+
+Kontrole bez API z nowego klonu:
 
 ```bash
-for t in tests/test-*.sh; do bash "$t"; done
+python3 -m venv .venv
+. .venv/bin/activate
+python3 -m pip install ruff mypy pytest pyyaml
+bash scripts/check.sh
 ```
 
-## Najczęstsze pytania
+Wymagany jest Node.js. ESLint i TypeScript włączają dodatkowe testy narzędzi. CI instaluje je i wykonuje to samo polecenie. Skrypt kończy się błędem, gdy dowolna kontrola nie przejdzie. Układ testów opisuje [CONTRIBUTING.md](CONTRIBUTING.md).
 
-**Czy to mnie spowolni?**
+[Skrypty pomiarowe](evals/README.md) obejmują syntetyczne błędy i opcjonalne eksperymenty API. Repo nie publikuje odpowiedzi modeli ani wyników ich jakości. Próba bez API sprawdza, czy celowe błędy oblewają testy wzorcowe. Nie mierzy skuteczności modeli. Eksperymenty API wymagają osobnej instalacji SDK i powodują opłaty dostawcy. CI nie wywołuje API modeli.
 
-Każdy krok weryfikatora ma własny limit czasu: domyślnie 4 sekundy dla lintu, 5 dla typecheck, 8 dla testów. Czysta edycja w małym projekcie kończy się w kilka sekund. Limity możesz zwiększyć w sekcji Ustawienia.
+## Źródła i licencja
 
-**Co, jeśli naprawdę muszę wyłączyć regułę lintera?**
+Przebieg lokalizacji opiera się na [Agentless (Xia i inni, 2024)](https://arxiv.org/abs/2407.01489). Hooki korzystają z [dokumentacji Anthropic](https://code.claude.com/docs/en/hooks).
 
-Ustaw `BETON_BYPASS_GUARD=off` na czas tej edycji, wprowadź zmianę, potem włącz strażnika z powrotem. Decyzja i tak trafia do pliku statystyk, więc zobaczysz ją później, nawet jeśli zapomnisz.
-
-**Czemu nie użyć zwykłych hooków pre-commit?**
-
-Hook pre-commit uruchamia się przy `git commit`. Do tego momentu AI mogło już wykonać długi ciąg edycji, z których część mogła po cichu coś zepsuć. BETON uruchamia się po każdym pojedynczym `Write`/`Edit`, bliżej momentu, w którym faktycznie dochodzi do obchodzenia sprawdzeń.
-
-**Czy to działa poza Claude Code?**
-
-Skrypty weryfikujące (`bin/lint-file`, `bin/typecheck-file`, `bin/run-affected-tests`) działają samodzielnie. Możesz je podłączyć do innego systemu hooków. Strażnik `PreToolUse` działa tylko wewnątrz Claude Code, przez system hooków pluginu, bo zależy od formatu JSON zdarzeń narzędzi, jaki wysyła Claude Code.
-
-**Wyniki testów pokazują, że Haiku nie odmawia obchodzenia sprawdzeń lepiej ze skillem niż bez niego. Czy skill w ogóle działa?**
-
-Dla modelu Haiku głównym wkładem skilla jest trzymanie się Fazy 1: skuteczność rośnie z 0% do 100%. Skill nie pokonuje zwykłej krótkiej instrukcji w powstrzymywaniu Haiku przed szukaniem skrótów. Jeśli odmowa obchodzenia sprawdzeń ma dla ciebie znaczenie, ustaw subagenta localize na model Sonnet, zmieniając pole `model:` w `agents/localize.md`.
-
-**Czy mogę używać tego w kilku sesjach Claude Code równolegle?**
-
-Tak. Plik statystyk używa `fcntl.flock` do atomowego zwiększania liczników. Przetestowano ze 100 równoległymi zapisami, bez utraty żadnej aktualizacji.
-
-**Czy strażnik obchodzenia sprawdzeń łapie każdy możliwy sposób obejścia?**
-
-Nie. To lista znanych wzorców, nie pełna ochrona. Pełny opis w sekcji "Czym ten strażnik nie jest" powyżej.
-
-## Podziękowania
-
-Mechanizm naprawy błędów opiera się na pracy Agentless (Xia i in., 2024), która jako pierwsza opisała sekwencję: zlokalizuj, odtwórz błąd, napraw, zwaliduj, używaną przez `beton-swebench`.
-
-Struktura pluginu jest zgodna ze specyfikacją pluginów Claude Code od Anthropic.
-
-## Licencja
-
-MIT
+Kod, syntetyczne scenariusze i dokumentacja mają [licencję MIT](LICENSE). Repo nie zawiera obrazów, fontów, dźwięku ani zewnętrznych zbiorów benchmarkowych. Odznaki CI i licencji renderują GitHub i Shields.io.

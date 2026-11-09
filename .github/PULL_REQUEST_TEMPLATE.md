@@ -10,13 +10,12 @@
 
 ```bash
 # Commands a reviewer can run to confirm the change works.
-for t in tests/test-*.sh; do bash "$t"; done
+bash scripts/check.sh
 ```
 
 ## Checklist
 
-- [ ] All existing tests pass (`for t in tests/test-*.sh; do bash "$t"; done`)
+- [ ] All existing tests pass (`bash scripts/check.sh`)
 - [ ] New tests added if behavior changed
-- [ ] `CHANGELOG.md` updated under `## [Unreleased]` if user-visible
 - [ ] README updated if user-visible behavior changed
-- [ ] No em dashes in new prose (`grep -nF '—' README.md` returns nothing)
+- [ ] No em dashes in new prose (check changed prose for U+2014)

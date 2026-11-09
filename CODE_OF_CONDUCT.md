@@ -8,4 +8,4 @@ In short:
 - Disagree on technical substance, not on people.
 - No harassment, no personal attacks, no discrimination.
 
-If something happens that shouldn't, report it to [address removed].
+Report conduct concerns through a GitHub issue asking for a private contact channel. Do not post personal information.
