@@ -1,10 +1,10 @@
 {
   "name": "beton",
   "version": "0.1.0",
-  "description": "Verify-on-edit loop for Claude Code: lint, typecheck, and run affected tests after every Edit. Refuse bypass shortcuts. Block on failure. Includes an Agentless bug-fix skill.",
+  "description": "Runs lint, type checks and affected tests after edits. Rejects common bypass patterns before edits.",
   "author": {
     "name": "Szymon Jędryczko",
-    "url": "https://github.com/tenzanlogic"
+    "url": "https://github.com/NetBr3ak"
   },
   "license": "MIT",
   "hooks": {
@@ -13,7 +13,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/beton-activate.js",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/beton-activate.js\"",
             "timeout": 5
           }
         ]
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-guard.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-guard.sh\"",
             "timeout": 5
           }
         ]
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-verify.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-verify.sh\"",
             "timeout": 30
           }
         ]
@@ -45,6 +45,6 @@
     ]
   },
   "statusLine": {
-    "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/statusline.sh"
+    "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/statusline.sh\""
   }
 }

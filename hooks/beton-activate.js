@@ -63,7 +63,7 @@ if (mode !== 'off') {
 
 if (!hasStatusLine()) {
   lines.push('\nTip: configure statusLine to see BETON ✓/✗ in your prompt.');
-  lines.push('  Settings → statusLine.command: bash $CLAUDE_PLUGIN_ROOT/hooks/statusline.sh');
+  lines.push('  See README: configure a stable clone path in statusLine.command.');
 }
 
 process.stdout.write(lines.join('\n'));
