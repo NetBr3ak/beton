@@ -18,16 +18,16 @@ import os
 import re
 import shlex
 import subprocess
-import sys
 import symtable
+import sys
 from pathlib import Path
 
 # (tag, compiled regex). Order matters only for the message: the first
 # matching pattern wins, but they're disjoint in practice.
 EDIT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-    ("ruff-noqa-block", re.compile(r"^\s*#\s*ruff:\s*noqa", re.M)),
-    ("noqa", re.compile(r"#\s*noqa(\b|:)", re.I)),
-    ("type-ignore", re.compile(r"#\s*type:\s*ignore", re.I)),
+    ("ruff-noqa-block", re.compile(r"^\s*#\s*ruff:\s*noqa", re.MULTILINE)),
+    ("noqa", re.compile(r"#\s*noqa(\b|:)", re.IGNORECASE)),
+    ("type-ignore", re.compile(r"#\s*type:\s*ignore", re.IGNORECASE)),
     ("ts-ignore", re.compile(r"@ts-(expect-error|ignore|nocheck)\b")),
     ("eslint-disable", re.compile(r"(?://|/\*)\s*eslint-disable(?:-next-line|-line)?\b")),
     ("biome-ignore", re.compile(r"(?://|/\*)\s*biome-ignore\b")),
@@ -136,7 +136,7 @@ def read_head(path: Path, root: Path) -> str | None:
         return None
     result = subprocess.run(
         ["git", "-C", str(path.parent), "show", f"HEAD:./{path.name}"],
-        capture_output=True, text=True, timeout=2,
+        capture_output=True, text=True, timeout=2, check=False,
     )
     return result.stdout if result.returncode == 0 else None
 

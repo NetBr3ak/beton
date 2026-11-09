@@ -21,10 +21,11 @@ Usage:
 
 Counters: blocks | bypasses_refused | clean
 
-Designed to be called from shell hooks. Never raises; on error it returns
+Designed to be called from shell hooks. On an I/O error it returns
 empty output and exit 0 so the calling hook stays silent.
 """
 from __future__ import annotations
+
 import json
 import sys
 from contextlib import contextmanager
@@ -74,6 +75,8 @@ def load() -> dict:
     try:
         data = json.loads(STATS_PATH.read_text())
     except (json.JSONDecodeError, OSError):
+        return _fresh()
+    if not isinstance(data, dict):
         return _fresh()
     today = date.today().isoformat()
     if data.get("day") != today:
@@ -158,8 +161,8 @@ def main() -> None:
             summary()
         elif cmd == "reset":
             reset()
-    except Exception:
-        # Never fail a hook because stats are sticky. Swallow and exit 0.
+    except OSError:
+        # Never fail a hook over an unwritable stats or lock file. Swallow and exit 0.
         sys.exit(0)
 
 

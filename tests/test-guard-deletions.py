@@ -2,10 +2,10 @@
 import importlib.util
 import io
 import json
-from pathlib import Path
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location(

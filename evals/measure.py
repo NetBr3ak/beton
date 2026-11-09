@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 BETON evals, stage 2: offline measurement (no API calls).
 

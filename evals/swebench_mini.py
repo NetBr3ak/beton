@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 BETON SWE-bench-mini: end-to-end resolve-rate measurement.
 
@@ -117,7 +116,7 @@ def run_pytest_status(work_dir: Path, kexpr: str | None = None, timeout: int = 3
         cmd += ["-k", kexpr]
     try:
         r = subprocess.run(
-            cmd, cwd=str(work_dir), capture_output=True, text=True, timeout=timeout
+            cmd, cwd=str(work_dir), capture_output=True, text=True, timeout=timeout, check=False
         )
         return r.returncode, (r.stdout + r.stderr)[-2000:]
     except subprocess.TimeoutExpired:

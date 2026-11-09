@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 BETON evals, stage 1: API calls.
 

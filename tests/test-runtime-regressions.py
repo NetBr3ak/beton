@@ -1,11 +1,11 @@
 """Executable regression checks for verifier errors and project paths."""
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -27,7 +27,7 @@ class RuntimeTests(unittest.TestCase):
 
     def run_script(self, name, file):
         return subprocess.run(["bash", str(ROOT / "bin" / name), str(file)],
-                              env=self.env, capture_output=True, text=True)
+                              env=self.env, capture_output=True, text=True, check=False)
 
     def test_config_path_with_apostrophe(self):
         config = self.root / "user's config"
@@ -36,7 +36,7 @@ class RuntimeTests(unittest.TestCase):
         self.env.pop("BETON_MODE")
         self.env["XDG_CONFIG_HOME"] = str(config)
         result = subprocess.run(["bash", "-c", 'source "$1"; beton_mode', "bash", str(ROOT / "bin/lib.sh")],
-                                env=self.env, capture_output=True, text=True)
+                                env=self.env, capture_output=True, text=True, check=False)
         self.assertEqual(result.stdout.strip(), "off")
 
     def test_silent_stage_failure_blocks(self):
@@ -50,7 +50,7 @@ class RuntimeTests(unittest.TestCase):
         self.env["CLAUDE_PLUGIN_ROOT"] = str(plugin)
         event = {"tool_input": {"file_path": str(source)}}
         result = subprocess.run(["bash", str(ROOT / "hooks/post-tool-verify.sh")], input=json.dumps(event),
-                                env=self.env, capture_output=True, text=True)
+                                env=self.env, capture_output=True, text=True, check=False)
         self.assertEqual(json.loads(result.stdout)["decision"], "block")
         self.assertIn("7", result.stdout)
 
@@ -65,7 +65,7 @@ class RuntimeTests(unittest.TestCase):
         self.env.update(CLAUDE_PLUGIN_ROOT=str(plugin), BETON_TC_TIMEOUT="3")
         event = {"tool_input": {"file_path": str(source)}}
         result = subprocess.run(["bash", str(ROOT / "hooks/post-tool-verify.sh")], input=json.dumps(event),
-                                env=self.env, capture_output=True, text=True)
+                                env=self.env, capture_output=True, text=True, check=False)
         output = json.loads(result.stdout)
         self.assertEqual(output["decision"], "block")
         self.assertIn("TYPE timed out after 3 seconds", output["additionalContext"])
@@ -124,14 +124,14 @@ class RuntimeTests(unittest.TestCase):
     def test_repo_map_reads_ctags_output(self):
         self.tool("ctags", 'if [ "$1" = "--version" ]; then echo "Universal Ctags"; else echo \'{"_type":"tag","path":"auth.py","name":"auth","kind":"function","line":1}\'; fi\n')
         result = subprocess.run(["bash", str(ROOT / "bin/repo-map"), str(self.root)],
-                                env=self.env, capture_output=True, text=True)
+                                env=self.env, capture_output=True, text=True, check=False)
         self.assertEqual(result.returncode, 0)
         self.assertIn("auth :1", result.stdout)
 
     def test_repo_map_short_budget_is_not_a_pipe_failure(self):
         self.tool("ctags", 'if [ "$1" = "--version" ]; then echo "Universal Ctags"; else for n in {1..100}; do echo \'{"_type":"tag","path":"auth.py","name":"auth","kind":"function","line":1}\'; done; fi\n')
         result = subprocess.run(["bash", str(ROOT / "bin/repo-map"), str(self.root), "--budget", "1"],
-                                env=self.env, capture_output=True, text=True)
+                                env=self.env, capture_output=True, text=True, check=False)
         self.assertEqual(result.returncode, 0)
         self.assertLessEqual(len(result.stdout), 4)
 
@@ -141,7 +141,7 @@ class RuntimeTests(unittest.TestCase):
         shutil.copy(ROOT / "bin/lib.sh", plugin / "bin/lib.sh")
         self.env["CLAUDE_PLUGIN_ROOT"] = str(plugin)
         result = subprocess.run(["bash", str(ROOT / "hooks/pre-tool-guard.sh")], input='{"tool_name":"Edit"}',
-                                env=self.env, capture_output=True, text=True)
+                                env=self.env, capture_output=True, text=True, check=False)
         self.assertEqual(result.returncode, 2)
         self.assertIn("BETON", result.stderr)
 

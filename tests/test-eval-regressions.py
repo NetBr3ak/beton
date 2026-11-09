@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import contextlib
 import importlib
 import io
@@ -6,9 +5,9 @@ import json
 import subprocess
 import sys
 import tempfile
-from types import SimpleNamespace
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -98,14 +97,14 @@ pass
                 patch.object(swe, "load_skill", return_value=("", "")), \
                 patch.object(swe, "run_pytest_status", return_value=(1, "1 failed, 1 error")), \
                 patch.object(sys, "argv", ["swebench_mini.py", "--dry-run"]), \
-                contextlib.redirect_stdout(io.StringIO()):
-            with self.assertRaises(SystemExit):
-                swe.main()
+                contextlib.redirect_stdout(io.StringIO()), \
+                self.assertRaises(SystemExit):
+            swe.main()
 
     def run_measure(self, snapshot, *args):
         path = self.work / 'snapshot.json'
         path.write_text(json.dumps(snapshot))
-        return subprocess.run([sys.executable, "-S", str(ROOT / 'evals/measure.py'), '--snapshot', str(path), *args], capture_output=True, text=True)
+        return subprocess.run([sys.executable, "-S", str(ROOT / 'evals/measure.py'), '--snapshot', str(path), *args], capture_output=True, text=True, check=False)
 
     def snapshot(self):
         responses = [{"id": "bug", "kind": "bug", "response": "fix"},
