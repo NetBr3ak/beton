@@ -45,26 +45,31 @@ LINT_TIMEOUT="${BETON_LINT_TIMEOUT:-4}"
 TC_TIMEOUT="${BETON_TC_TIMEOUT:-5}"
 TEST_TIMEOUT="${BETON_TEST_TIMEOUT:-${BETON_VERIFY_TIMEOUT:-8}}"
 
-# Run one verifier stage. Args: label, timeout-seconds, script-path.
+# Run one verifier stage. Args: label, timeout-seconds, timeout-variable, script-path.
 # Appends "LABEL:\n<output>" to ERRORS if the script exits non-zero.
 _stage() {
-  local label="$1" t="$2" script="$3"
+  local label="$1" t="$2" limit_var="$3" script="$4"
   local exit_code=0 out
   out=$(_timeout "$t" bash "${script}" "${FILE_PATH}" 2>&1) || exit_code=$?
+  # 124 is the timeout status of timeout(1) and of the perl fallback in lib.sh. A timeout still
+  # blocks (fail-closed); the message names the variable that raises the limit.
+  if [ "$exit_code" -eq 124 ]; then
+    out="${label} timed out after ${t} seconds. Raise ${limit_var} to allow more time.${out:+\n${out}}"
+  fi
   if [ "$exit_code" -ne 0 ]; then
     [ -n "$out" ] || out="Verifier exited with status ${exit_code} (no output)."
     ERRORS+=("${label}:\n${out}")
   fi
 }
 
-_stage LINT "${LINT_TIMEOUT}" "${PLUGIN_ROOT}/bin/lint-file"
-[ ${#ERRORS[@]} -eq 0 ] && _stage TYPE "${TC_TIMEOUT}" "${PLUGIN_ROOT}/bin/typecheck-file"
+_stage LINT "${LINT_TIMEOUT}" BETON_LINT_TIMEOUT "${PLUGIN_ROOT}/bin/lint-file"
+[ ${#ERRORS[@]} -eq 0 ] && _stage TYPE "${TC_TIMEOUT}" BETON_TC_TIMEOUT "${PLUGIN_ROOT}/bin/typecheck-file"
 if [ ${#ERRORS[@]} -eq 0 ]; then
   # Only run tests inside a real project; in /tmp or random dirs there's nothing
   # meaningful to discover. The sub-script does its own project-root detection,
   # but this gate avoids the walk entirely outside a git tree.
   if git -C "$(dirname "${FILE_PATH}")" rev-parse --show-toplevel &>/dev/null; then
-    _stage TEST "${TEST_TIMEOUT}" "${PLUGIN_ROOT}/bin/run-affected-tests"
+    _stage TEST "${TEST_TIMEOUT}" BETON_TEST_TIMEOUT "${PLUGIN_ROOT}/bin/run-affected-tests"
   fi
 fi
 

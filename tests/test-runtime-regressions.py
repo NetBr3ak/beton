@@ -54,6 +54,23 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(json.loads(result.stdout)["decision"], "block")
         self.assertIn("7", result.stdout)
 
+    def test_stage_timeout_names_its_limit(self):
+        plugin = self.root / "plugin"
+        (plugin / "bin").mkdir(parents=True)
+        shutil.copy(ROOT / "bin/lib.sh", plugin / "bin/lib.sh")
+        (plugin / "bin/lint-file").write_text("exit 0\n")
+        (plugin / "bin/typecheck-file").write_text("exit 124\n")
+        source = self.root / "file.py"
+        source.write_text("x = 1\n")
+        self.env.update(CLAUDE_PLUGIN_ROOT=str(plugin), BETON_TC_TIMEOUT="3")
+        event = {"tool_input": {"file_path": str(source)}}
+        result = subprocess.run(["bash", str(ROOT / "hooks/post-tool-verify.sh")], input=json.dumps(event),
+                                env=self.env, capture_output=True, text=True)
+        output = json.loads(result.stdout)
+        self.assertEqual(output["decision"], "block")
+        self.assertIn("TYPE timed out after 3 seconds", output["additionalContext"])
+        self.assertIn("BETON_TC_TIMEOUT", output["additionalContext"])
+
     def test_eslint_fatal_error_propagates(self):
         self.tool("eslint", "echo 'invalid config' >&2\nexit 2\n")
         (self.root / "eslint.config.js").write_text("export default [;\n")

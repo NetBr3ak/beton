@@ -88,7 +88,7 @@ BETON_BYPASS_GUARD=off claude
 | `BETON_VERIFY_TIMEOUT` | `8` | Starszy alias limitu testów |
 | `BETON_PAYLOAD_BUDGET` | `2400` | Limit znaków błędu przed dodaniem znaczników skrótu |
 
-Wartości pochodzą z `hooks/post-tool-verify.sh`. Łańcuch ogranicza też zewnętrzny limit hooka Claude Code. Samo zwiększenie limitów etapów go nie wydłuża. Każdy niezerowy kod narzędzia jest błędem, również przekroczenie czasu bez komunikatu.
+Wartości pochodzą z `hooks/post-tool-verify.sh`. Łańcuch ogranicza też zewnętrzny limit hooka Claude Code. Samo zwiększenie limitów etapów go nie wydłuża. Każdy niezerowy kod narzędzia jest błędem, również przekroczenie czasu bez komunikatu. Komunikat o przekroczeniu czasu podaje etap, limit w sekundach i zmienną, która go zwiększa.
 
 Tryb można zapisać w `$XDG_CONFIG_HOME/beton/config.json` lub `~/.config/beton/config.json` jako `{"mode":"off"}`. Poprawna wartość zmiennej środowiskowej ma pierwszeństwo.
 

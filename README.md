@@ -88,7 +88,7 @@ To disable both verification hooks, launch with `BETON_MODE=off claude`. Disable
 | `BETON_VERIFY_TIMEOUT` | `8` | Legacy fallback for the test timeout |
 | `BETON_PAYLOAD_BUDGET` | `2400` | Error-text character budget before truncation markers |
 
-Defaults come from `hooks/post-tool-verify.sh`. The outer Claude Code hook timeout also bounds the chain, so raising stage limits alone does not extend it. A nonzero checker status, including timeout, is a failure even without output.
+Defaults come from `hooks/post-tool-verify.sh`. The outer Claude Code hook timeout also bounds the chain, so raising stage limits alone does not extend it. A nonzero checker status, including timeout, is a failure even without output. A timeout message names the stage, its limit in seconds and the variable that raises it.
 
 Mode can also be set in `$XDG_CONFIG_HOME/beton/config.json`, or `~/.config/beton/config.json`, with `{"mode":"off"}`. A valid environment value takes precedence.
 
