@@ -56,11 +56,20 @@ class RuntimeTests(unittest.TestCase):
 
     def test_eslint_fatal_error_propagates(self):
         self.tool("eslint", "echo 'invalid config' >&2\nexit 2\n")
+        (self.root / "eslint.config.js").write_text("export default [;\n")
         source = self.root / "file.ts"
         source.touch()
         result = self.run_script("lint-file", source)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("invalid config", result.stdout + result.stderr)
+
+    def test_project_without_eslint_config_skips_eslint(self):
+        self.tool("eslint", "echo 'no eslint.config file' >&2\nexit 2\n")
+        source = self.root / "dir with spaces/file.js"
+        source.parent.mkdir()
+        source.touch()
+        result = self.run_script("lint-file", source)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_tsc_dependency_error_propagates(self):
         self.tool("tsc", "echo 'dependency.ts(1,1): error TS2322'\nexit 2\n")

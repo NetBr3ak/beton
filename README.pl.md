@@ -52,7 +52,7 @@ Jeśli instalacja miała zakres projektu lub lokalny, podaj ten sam `--scope` pr
 | Rust | cargo clippy w głównym katalogu repo z Cargo.toml | W clippy | cargo test, gdy znajdzie pasujące pliki testów |
 | Go | staticcheck | go vet | Brak |
 
-Dla Pythona zainstaluj `python3 -m pip install ruff mypy pytest`. Dla TypeScript zainstaluj i skonfiguruj ESLint, TypeScript oraz narzędzie testujące w projekcie. Błąd konfiguracji zainstalowanego narzędzia jest błędem kontroli.
+Dla Pythona zainstaluj `python3 -m pip install ruff mypy pytest`. Dla TypeScript zainstaluj i skonfiguruj ESLint, TypeScript oraz narzędzie testujące w projekcie. Błąd konfiguracji zainstalowanego narzędzia jest błędem kontroli. ESLint działa tylko wtedy, gdy w katalogu edytowanego pliku lub wyżej istnieje plik `eslint.config.*` albo `.eslintrc*`.
 
 Nazwy testów muszą pasować do `test_NAME.EXT`, `NAME_test.EXT`, `NAME.test.EXT` lub `NAME.spec.EXT`. Edycja takiego pliku uruchamia ten plik. Wyszukiwanie kończy się przy najbliższym znaczniku projektu lub katalogu Git. Hook po edycji uruchamia testy tylko w drzewie roboczym Git. Nie uruchamia całego zestawu po każdej edycji i nie sprawdza zapisów przez Bash.
 

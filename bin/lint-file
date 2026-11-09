@@ -6,6 +6,19 @@ set -euo pipefail
 FILE="${1:-}"
 [ -z "${FILE}" ] || [ ! -f "${FILE}" ] && { echo "Usage: lint-file <filepath>" >&2; exit 1; }
 
+# True when an ESLint config sits in the file's directory or above it.
+has_eslint_config() {
+  local d
+  d=$(cd "$(dirname "$1")" && pwd)
+  while :; do
+    if compgen -G "$d/eslint.config.*" >/dev/null || compgen -G "$d/.eslintrc*" >/dev/null; then
+      return 0
+    fi
+    [ "$d" = "/" ] && return 1
+    d=$(dirname "$d")
+  done
+}
+
 case "${FILE##*.}" in
   py)
     if command -v ruff &>/dev/null; then
@@ -15,7 +28,8 @@ case "${FILE##*.}" in
     fi
     ;;
   ts|tsx|js|jsx|mjs|cjs)
-    if command -v eslint &>/dev/null; then
+    # Without a config ESLint exits 2. Such a project does not use ESLint: skip, as for a missing tool.
+    if command -v eslint &>/dev/null && has_eslint_config "${FILE}"; then
       exec eslint "${FILE}"
     fi
     ;;

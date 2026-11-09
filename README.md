@@ -52,7 +52,7 @@ If you installed into a project or local scope, pass the same `--scope` to unins
 | Rust | cargo clippy at a Cargo.toml repository root | Included in clippy | cargo test when matching test files are found |
 | Go | staticcheck | go vet | Not run |
 
-For Python, start with `python3 -m pip install ruff mypy pytest`. For TypeScript, install and configure ESLint, TypeScript and your test runner in the project. An installed checker with invalid configuration reports a failure.
+For Python, start with `python3 -m pip install ruff mypy pytest`. For TypeScript, install and configure ESLint, TypeScript and your test runner in the project. An installed checker with invalid configuration reports a failure. ESLint runs only when an `eslint.config.*` or `.eslintrc*` file exists in the edited file's directory or above it.
 
 Tests are matched by `test_NAME.EXT`, `NAME_test.EXT`, `NAME.test.EXT` or `NAME.spec.EXT`. Editing a matching test file runs that file. Discovery stops at the nearest project marker or Git root. The post-edit hook runs tests only inside a Git working tree. It does not run the full suite for every edit, and it does not verify Bash writes.
 
