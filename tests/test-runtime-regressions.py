@@ -71,14 +71,26 @@ class RuntimeTests(unittest.TestCase):
         result = self.run_script("lint-file", source)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_tsc_dependency_error_propagates(self):
-        self.tool("tsc", "echo 'dependency.ts(1,1): error TS2322'\nexit 2\n")
+    def test_tsc_errors_in_other_files_do_not_block(self):
+        self.tool("tsc", "echo 'dependency.ts(1,1): error TS2322'\necho 'other/file.ts(1,1): error TS2322'\nexit 2\n")
         (self.root / "tsconfig.json").write_text("{}")
         source = self.root / "file.ts"
         source.touch()
         result = self.run_script("typecheck-file", source)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("dependency.ts", result.stdout)
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_tsc_error_in_edited_file_blocks(self):
+        self.tool("tsc", "echo 'other/file.ts(1,1): error TS2322: other'\n"
+                         "echo 'src/file.ts(2,3): error TS2322: mine'\necho '  detail line'\nexit 2\n")
+        (self.root / "tsconfig.json").write_text("{}")
+        source = self.root / "src/file.ts"
+        source.parent.mkdir()
+        source.touch()
+        result = self.run_script("typecheck-file", source)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("mine", result.stdout)
+        self.assertIn("detail line", result.stdout)
+        self.assertNotIn("other", result.stdout)
 
     def test_edited_test_runs_from_project_with_spaces(self):
         project = self.root / "project with spaces"

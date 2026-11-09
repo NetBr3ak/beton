@@ -56,9 +56,26 @@ PYEOF
     )
     if command -v tsc &>/dev/null && [ -n "${TSCONFIG}" ]; then
       STATUS=0
-      OUT=$(_timeout "${TIMEOUT}" tsc --project "${TSCONFIG}" --noEmit 2>&1) || STATUS=$?
-      if [ "$STATUS" -ne 0 ]; then
-        printf '%s\n' "${OUT}"
+      # tsc prints paths relative to its working directory, so run it in the tsconfig directory.
+      OUT=$(cd "$(dirname "${TSCONFIG}")" && _timeout "${TIMEOUT}" tsc --project "${TSCONFIG}" --noEmit 2>&1) || STATUS=$?
+      [ "$STATUS" -eq 124 ] && { printf '%s\n' "${OUT}"; exit 124; }
+      # Block only on the edited file, matched by resolved path: a basename match caught
+      # same-named files, and errors in other files belong to the test run and CI.
+      OWN=$(printf '%s\n' "${OUT}" | python3 -c '
+import os, re, sys
+base, target = sys.argv[1], os.path.realpath(sys.argv[2])
+own = False
+for line in sys.stdin:
+    m = re.match(r"(.+?)\(\d+,\d+\): error ", line)
+    if m:
+        own = os.path.realpath(os.path.join(base, m.group(1))) == target
+    elif not line.startswith(" "):
+        own = False
+    if own:
+        print(line, end="")
+' "$(dirname "${TSCONFIG}")" "${FILE}")
+      if [ -n "${OWN}" ]; then
+        printf '%s\n' "${OWN}"
         exit 1
       fi
     fi
