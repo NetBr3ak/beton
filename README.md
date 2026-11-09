@@ -62,11 +62,11 @@ The guard checks new text for suppression comments and skip or focus markers. It
 
 Python test removal has a narrow exception:
 
-- A simple `rm source.py test_source.py` is allowed when the test directly imports and uses the removed source. Removing unrelated source does not qualify. Tests that also use retained source remain protected.
+- A simple `rm source.py test_source.py` is allowed when every test in the file uses the removed source. Removing unrelated source does not qualify. A test that also reaches retained local code stays protected, whether it uses that code directly or through the module's helpers, constants, fixtures or its test class.
 - To remove a Python test function, remove its directly imported source definition first. The guard compares source definitions with Git `HEAD`. Then remove the test through `Edit`, `Write` or `MultiEdit` in the same uncommitted change.
 - Removing a test alone or renaming it without removing its source is rejected.
 
-The exception supports top-level `from module import symbol` imports and Python test functions or methods named `test_*`. Relative imports, indirect fixtures, other languages and compound shell deletion commands are not resolved. Review these cases yourself before using the opt-out.
+The exception resolves `from module import symbol` and `import module` for modules and package `__init__.py` files next to the test, at the project root or under `src/`. It covers Python test functions and methods named `test_*`. A test stays protected when it uses a relative import, a fixture from `conftest.py`, pytest or a plugin, or a local package the guard cannot map to a file. Other languages and compound shell deletion commands are not resolved. Review these cases yourself before using the opt-out.
 
 To disable only the guard for a Claude Code session:
 

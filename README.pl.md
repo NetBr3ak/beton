@@ -62,11 +62,11 @@ Kontrola szuka w nowym tekście znaczników wyciszania błędów, pomijania test
 
 Usuwanie testów Pythona ma wąski wyjątek:
 
-- Proste `rm source.py test_source.py` jest dozwolone, gdy test bezpośrednio importuje i używa usuwanego źródła. Usunięcie niepowiązanego źródła nie wystarcza. Testy używające również zachowanego źródła pozostają chronione.
+- Proste `rm source.py test_source.py` jest dozwolone, gdy każdy test w pliku używa usuwanego źródła. Usunięcie niepowiązanego źródła nie wystarcza. Test, który sięga też do zachowanego kodu lokalnego, pozostaje chroniony. Dotyczy to użycia bezpośredniego oraz przez funkcje pomocnicze, stałe i fixtures modułu albo jego klasę testową.
 - Aby usunąć funkcję testową, najpierw usuń bezpośrednio importowaną definicję źródłową. Kontrola porównuje definicje z Git `HEAD`. Potem usuń test przez `Edit`, `Write` lub `MultiEdit` w tej samej niezatwierdzonej zmianie.
 - Usunięcie samego testu lub zmiana jego nazwy bez usunięcia źródła są odrzucane.
 
-Wyjątek obsługuje importy `from module import symbol` na poziomie modułu i funkcje lub metody Pythona o nazwach `test_*`. Nie rozwiązuje importów względnych, pośrednich fixtures, innych języków ani złożonych poleceń usuwania. Takie przypadki sprawdź sam przed wyłączeniem ochrony.
+Wyjątek rozpoznaje `from module import symbol` oraz `import module` dla modułów i plików `__init__.py` pakietów obok testu, w katalogu głównym projektu lub w `src/`. Obejmuje funkcje i metody Pythona o nazwach `test_*`. Test pozostaje chroniony, gdy używa importu względnego, fixture z `conftest.py`, pytest lub pluginu albo lokalnego pakietu, którego kontrola nie przypisze do pliku. Inne języki i złożone polecenia usuwania nie są rozpoznawane. Takie przypadki sprawdź sam przed wyłączeniem ochrony.
 
 Wyłączenie samej kontroli skrótów dla sesji Claude Code:
 

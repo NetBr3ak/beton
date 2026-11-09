@@ -113,6 +113,55 @@ class DeletionTests(unittest.TestCase):
         (self.root / "folder with spaces/test_auth.py").write_text(TEST)
         self.assertEqual(self.decision("Bash", {"command": "rm 'folder with spaces/auth.py' 'folder with spaces/test_auth.py'"}), "allow")
 
+    def write(self, files):
+        for name, text in files.items():
+            (self.root / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / name).write_text(text)
+
+    def test_retained_source_reached_another_way_stays_protected(self):
+        helper = {"helper.py": "def make():\n    return 1\n", "app.py": "def compute(x):\n    return x\n"}
+        cases = {
+            "plain import": "import app\nfrom helper import make\ndef test_c():\n    assert app.compute(make())\n",
+            "relative import": "from .app import compute\nfrom helper import make\ndef test_c():\n    assert compute(make())\n",
+            "import inside test": "from helper import make\ndef test_c():\n    from app import compute\n    assert compute(make())\n",
+            "module constant": "from app import compute\nfrom helper import make\nX = compute(1)\ndef test_c():\n    assert make() == X\n",
+            "outside fixture": "from helper import make\ndef test_c(compute_fn):\n    assert compute_fn(make())\n",
+            "class setUp": "import unittest\nfrom app import compute\nfrom helper import make\n"
+                           "class T(unittest.TestCase):\n    def setUp(self):\n        self.v = compute(1)\n"
+                           "    def test_c(self):\n        assert make() == self.v\n",
+        }
+        for name, test in cases.items():
+            with self.subTest(name):
+                self.write({**helper, "test_app.py": test})
+                self.assertEqual(self.decision("Bash", {"command": "rm helper.py test_app.py"}), "block")
+        self.write({"pkg/__init__.py": "def compute(x):\n    return x\n",
+                    "test_app.py": "from pkg import compute\nfrom helper import make\ndef test_c():\n    assert compute(make())\n"})
+        self.assertEqual(self.decision("Bash", {"command": "rm helper.py test_app.py"}), "block")
+
+    def test_joint_deletion_supports_common_test_shapes(self):
+        source = "def compute(x):\n    return x\n"
+        cases = {
+            "parametrize": "import pytest\nfrom app import compute\n"
+                           "@pytest.mark.parametrize('x, y', [(1, 1)])\ndef test_c(x, y):\n    assert compute(x) == y\n",
+            "module fixture": "import pytest\nfrom app import compute\n@pytest.fixture\ndef value():\n    return 1\n"
+                              "def test_c(value):\n    assert compute(value)\n",
+            "plain import": "import app\ndef test_c():\n    assert app.compute(1)\n",
+            "unittest class": "import unittest\nfrom app import compute\nclass T(unittest.TestCase):\n"
+                              "    def setUp(self):\n        self.v = 1\n    def test_c(self):\n        self.assertTrue(compute(self.v))\n",
+        }
+        for name, test in cases.items():
+            with self.subTest(name):
+                self.write({"app.py": source, "test_app.py": test})
+                self.assertEqual(self.decision("Bash", {"command": "rm app.py test_app.py"}), "allow")
+        self.write({"src/pkg/__init__.py": "", "src/pkg/feature.py": source,
+                    "tests/test_feature.py": "from pkg.feature import compute\ndef test_c():\n    assert compute(1)\n"})
+        self.assertEqual(self.decision("Bash", {"command": "rm src/pkg/feature.py tests/test_feature.py"}), "allow")
+
+    def test_read_only_shortcut_needs_a_bare_command_without_exec(self):
+        for command in ("rg --pre rm x test_auth.py", "./echo rm test_auth.py"):
+            with self.subTest(command=command):
+                self.assertEqual(self.decision("Bash", {"command": command}), "block")
+
 
 if __name__ == "__main__":
     unittest.main()

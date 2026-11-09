@@ -12,6 +12,7 @@ and so bash heredoc/command-substitution interactions can't corrupt it.
 from __future__ import annotations
 
 import ast
+import functools
 import json
 import os
 import re
@@ -128,6 +129,8 @@ def test_functions(tree: ast.Module) -> dict[str, ast.FunctionDef | ast.AsyncFun
     return tests
 
 
+# Cached: every test of a file asks for the same few candidate paths, and the hook has 5 s.
+@functools.cache
 def read_head(path: Path, root: Path) -> str | None:
     if not path.is_relative_to(root):
         return None
@@ -138,43 +141,119 @@ def read_head(path: Path, root: Path) -> str | None:
     return result.stdout if result.returncode == 0 else None
 
 
-def source_removed(test_path: Path, tree: ast.Module, nodes: list,
-                   root: Path, deleted: set[Path]) -> bool:
-    references = {node.id for test in nodes for node in ast.walk(test) if isinstance(node, ast.Name)}
-    local_sources = []
-    for node in tree.body:
-        if not isinstance(node, ast.ImportFrom) or not node.module or node.level:
+def parametrized(function: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    names: set[str] = set()
+    for decorator in function.decorator_list:
+        if not (isinstance(decorator, ast.Call) and decorator.args
+                and ast.unparse(decorator.func).endswith("parametrize")):
+            continue
+        first = decorator.args[0]
+        items = first.elts if isinstance(first, (ast.List, ast.Tuple)) else [first]
+        names |= {name.strip() for item in items if isinstance(item, ast.Constant)
+                  and isinstance(item.value, str) for name in item.value.split(",")}
+    return names
+
+
+def reached_names(tree: ast.Module, test: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str] | None:
+    """Names a test uses directly or through module-level helpers, constants,
+    fixtures and its test class. None when the test or a fixture takes a fixture
+    defined outside the module (conftest.py, a plugin, pytest itself)."""
+    definitions: dict[str, ast.AST] = {}
+    owners: dict[ast.AST, ast.ClassDef] = {}
+    for statement in tree.body:
+        if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            definitions[statement.name] = statement
+        if isinstance(statement, ast.ClassDef):
+            owners.update((member, statement) for member in statement.body)
+        elif isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            definitions.update((target.id, statement) for target in ast.walk(statement)
+                               if isinstance(target, ast.Name) and isinstance(target.ctx, ast.Store))
+    pending: list[ast.AST] = [test]
+    if owner := owners.get(test):
+        pending += [*owner.bases, *owner.decorator_list,
+                    *(member for member in owner.body if not getattr(member, "name", "").startswith("test_"))]
+    names: set[str] = set()
+    while pending:
+        node = pending.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and (
+                node is test or any("fixture" in ast.unparse(d) for d in node.decorator_list)):
+            arguments = node.args.posonlyargs + node.args.args + node.args.kwonlyargs
+            fixtures = {arg.arg for arg in arguments} - {"self", "cls"} - parametrized(node)
+            if fixtures - definitions.keys():
+                return None
+            pending += [definitions[name] for name in fixtures - names]
+            names |= fixtures
+        for child in ast.walk(node):
+            if isinstance(child, ast.Name) and child.id not in names:
+                names.add(child.id)
+                if child.id in definitions:
+                    pending.append(definitions[child.id])
+    return names
+
+
+def import_state(module: str, symbols: set[str] | None, bases: tuple[Path, ...],
+                 root: Path, deleted: set[Path]) -> str:
+    """'removed', 'retained' or 'external' for one import the tests use.
+    symbols is None for a plain `import module`, which only a deleted file satisfies."""
+    path = Path(*module.split("."))
+    for base in bases:
+        for candidate in (base / path.with_suffix(".py"), base / path / "__init__.py"):
+            candidate = candidate.resolve()
+            if not candidate.is_relative_to(root):
+                continue
+            current = candidate.read_text() if candidate.is_file() else None
+            if candidate in deleted and current is not None:
+                return "removed"
+            baseline = read_head(candidate, root)
+            if current is None and baseline is None:
+                continue
+            if symbols is None:
+                return "retained" if current is not None else "removed"
+            old_tree = parse_python(baseline or "")
+            if old_tree is None or parse_python(current or "") is None:
+                return "retained"
+            old_names = {item.name for item in old_tree.body if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))}
+            bindings = symtable.symtable(current or "", str(candidate), "exec")
+            new_names = {symbol.get_name() for symbol in bindings.get_symbols()
+                         if symbol.is_assigned() or symbol.is_imported()}
+            return "removed" if symbols <= old_names - new_names else "retained"
+    # A local package the guard cannot map to a file keeps the test protected.
+    return "retained" if any((base / path.parts[0]).exists() for base in bases) else "external"
+
+
+def used_imports(imports: list[ast.Import | ast.ImportFrom],
+                 references: set[str]) -> list[tuple[str, set[str] | None]] | None:
+    """(module, symbols) for each import a test uses; symbols is None for `import module`.
+    None when the test uses a relative import, which the guard does not resolve."""
+    used: list[tuple[str, set[str] | None]] = []
+    for node in imports:
+        if isinstance(node, ast.Import):
+            used += [(alias.name, None) for alias in node.names
+                     if (alias.asname or alias.name.split(".")[0]) in references]
             continue
         symbols = {alias.name for alias in node.names if (alias.asname or alias.name) in references}
         if not symbols:
             continue
-        module = Path(*node.module.split("."))
-        candidates = [base / module.with_suffix(".py") for base in (test_path.parent, root, root / "src")]
-        for candidate in candidates:
-            candidate = candidate.resolve()
-            if not candidate.is_relative_to(root):
-                continue
-            before = candidate.read_text() if candidate.is_file() else None
-            baseline = None
-            if candidate not in deleted:
-                baseline = read_head(candidate, root)
-            if before is None and baseline is None:
-                continue
-            local_sources.append(candidate)
-            if candidate in deleted:
-                break
-            old_tree = parse_python(baseline) if baseline is not None else None
-            new_tree = parse_python(before or "")
-            if old_tree is None or new_tree is None:
-                return False
-            old_names = {item.name for item in old_tree.body if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))}
-            bindings = symtable.symtable(before or "", str(candidate), "exec")
-            new_names = {symbol.get_name() for symbol in bindings.get_symbols()
-                         if symbol.is_assigned() or symbol.is_imported()}
-            if not symbols <= old_names - new_names:
-                return False
-            break
-    return bool(local_sources)
+        if node.level or not node.module:
+            return None
+        used.append((node.module, symbols))
+    return used
+
+
+def source_removed(test_path: Path, tree: ast.Module, tests: list,
+                   root: Path, deleted: set[Path]) -> bool:
+    """True when every test reaches removed local source and no retained or unresolved local code."""
+    bases = (test_path.parent, root, root / "src")
+    imports = [node for node in ast.walk(tree) if isinstance(node, (ast.Import, ast.ImportFrom))]
+    for test in tests:
+        references = reached_names(tree, test)
+        used = used_imports(imports, references) if references is not None else None
+        if used is None:
+            return False
+        states = {import_state(module, symbols, bases, root, deleted) for module, symbols in used}
+        if "retained" in states or "removed" not in states:
+            return False
+    return True
 
 
 def find_test_deletion(ti: dict, root: Path) -> tuple[str, str] | None:
@@ -198,7 +277,7 @@ def find_test_deletion(ti: dict, root: Path) -> tuple[str, str] | None:
     old_tests = test_functions(old_tree)
     new_tests = test_functions(new_tree) if new_tree else {}
     removed = [node for name, node in old_tests.items() if name not in new_tests]
-    if removed and not all(source_removed(path, old_tree, [node], root, set()) for node in removed):
+    if removed and not source_removed(path, old_tree, removed, root, set()):
         return "delete-test", str(path)
     return None
 
@@ -217,8 +296,9 @@ def find_bash_violation(command: str, root: Path) -> tuple[str, str] | None:
         return "mv-test", command.strip()
     if executable != "rm":
         # Compound commands remain textual checks; simple echo/pytest calls do not delete files.
+        # Bare names only: ./echo can be any script, and rg --pre runs a command on each file.
         shell_syntax = any(char in command for char in ";&|<>$`\n")
-        read_only = executable in {"echo", "printf", "ls", "cat", "rg", "grep", "pytest"}
+        read_only = words[0] in {"echo", "printf", "ls", "cat", "grep", "pytest"}
         if (shell_syntax or not read_only) and (RM_RE.search(command) or MV_RE.search(command)):
             return "rm-test", command.strip()
         return None
@@ -234,7 +314,7 @@ def find_bash_violation(command: str, root: Path) -> tuple[str, str] | None:
         if tree is None:
             return "rm-test", command.strip()
         nodes = list(test_functions(tree).values())
-        if not nodes or not all(source_removed(path, tree, [node], root, targets) for node in nodes):
+        if not nodes or not source_removed(path, tree, nodes, root, targets):
             return "rm-test", command.strip()
     return None
 
