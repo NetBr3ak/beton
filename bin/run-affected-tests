@@ -77,7 +77,12 @@ discover_tests() {
   printf '%s\n' "${found[@]+"${found[@]}"}" | awk 'NF && !seen[$0]++'
 }
 
-TEST_FILES=$(discover_tests)
+TEST_FILES=$({
+  discover_tests
+  if [ "$EXT" = py ]; then
+    python3 "$(dirname "$0")/python-affected-tests" "$FILE" "$PROJECT_ROOT"
+  fi
+} | awk 'NF && !seen[$0]++')
 [ -z "${TEST_FILES}" ] && exit 0
 
 if [ "${DRY_RUN}" = "--dry-run" ]; then
