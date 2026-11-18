@@ -21,7 +21,7 @@ done
 for file in hooks/*.js; do
   node --check "$file"
 done
-ruff check hooks/_guard_eval.py evals/ bin/beton-stats bin/beton-session-stats tests/test-guard-deletions.py tests/test-runtime-regressions.py tests/test-eval-regressions.py tests/test-typescript-diagnostics.py tests/test-typescript-json-config.py tests/test-typescript-output-volume.py
+ruff check hooks/_guard_eval.py evals/ bin/beton-stats bin/beton-session-stats tests/test-guard-deletions.py tests/test-runtime-regressions.py tests/test-eval-regressions.py tests/test-typescript-diagnostics.py tests/test-typescript-json-config.py tests/test-typescript-output-volume.py tests/test-mypy-config.py
 mypy --follow-imports=silent hooks/_guard_eval.py
 
 failed=0

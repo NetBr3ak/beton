@@ -15,19 +15,21 @@ case "${FILE##*.}" in
     if command -v mypy &>/dev/null; then
       # Respect user config when present (mypy.ini, .mypy.ini, pyproject.toml [tool.mypy], setup.cfg [mypy]).
       # Only inject our defaults if no config is reachable.
-      D=$(dirname "${FILE}")
-      HAS_CFG=0
+      D=$(cd "$(dirname "${FILE}")" && pwd)
+      FILE="$D/$(basename "${FILE}")"
+      MYPY_CONFIG=""
       while [ "$D" != "/" ]; do
         for c in mypy.ini .mypy.ini setup.cfg; do
-          [ -f "$D/$c" ] && grep -q "^\[mypy" "$D/$c" 2>/dev/null && HAS_CFG=1 && break 2
+          [ -f "$D/$c" ] && grep -q "^\[mypy" "$D/$c" 2>/dev/null && MYPY_CONFIG="$D/$c" && break 2
         done
         if [ -f "$D/pyproject.toml" ] && grep -q "^\[tool.mypy" "$D/pyproject.toml" 2>/dev/null; then
-          HAS_CFG=1; break
+          MYPY_CONFIG="$D/pyproject.toml"; break
         fi
         D=$(dirname "$D")
       done
-      if [ "$HAS_CFG" = "1" ]; then
-        _timeout "${TIMEOUT}" mypy "${FILE}"; exit $?
+      if [ -n "$MYPY_CONFIG" ]; then
+        # Resolve paths in project settings from the project, not the hook caller.
+        (cd "$D" && _timeout "${TIMEOUT}" mypy --config-file "$MYPY_CONFIG" "${FILE}"); exit $?
       else
         _timeout "${TIMEOUT}" mypy --ignore-missing-imports --no-error-summary "${FILE}"; exit $?
       fi
