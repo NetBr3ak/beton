@@ -58,41 +58,45 @@ PYEOF
       STATUS=0
       # tsc prints paths relative to its working directory, so run it in the tsconfig directory.
       OUT=$(cd "$(dirname "${TSCONFIG}")" && _timeout "${TIMEOUT}" tsc --project "${TSCONFIG}" --noEmit --pretty false --listFiles --diagnostics false --extendedDiagnostics false --traceResolution false --explainFiles false 2>&1) || STATUS=$?
-      [ "$STATUS" -eq 124 ] && { printf '%s\n' "${OUT}"; exit 124; }
+      [ "$STATUS" -eq 0 ] && exit 0
       # Match source diagnostics by resolved path to avoid catching same-named files.
       # Configuration and global compiler errors invalidate the entire check.
       OWN=$(printf '%s\n' "${OUT}" | python3 -c '
 import os, re, sys
 base, target = sys.argv[1], os.path.realpath(sys.argv[2])
 status = int(sys.argv[3])
-lines = list(sys.stdin)
+raw_lines = list(sys.stdin)
+file_diagnostic = re.compile(r"(.+?)\(\d+,\d+\): error ")
 # --listFiles identifies JSON modules as source, unlike inherited config files.
 sources = {
-    os.path.realpath(line.rstrip("\r\n"))
-    for line in lines
-    if os.path.isabs(line.rstrip("\r\n")) and os.path.isfile(line.rstrip("\r\n"))
+    os.path.normpath(line.rstrip("\r\n"))
+    for line in raw_lines
+    if os.path.isabs(line) and not file_diagnostic.match(line)
 }
+lines = [
+    line for line in raw_lines
+    if os.path.normpath(line.rstrip("\r\n")) not in sources
+]
 config = os.path.realpath(sys.argv[4])
 diagnostics = False
 unrecognized = False
 selected = []
 own = False
 for line in lines:
-    m = re.match(r"(.+?)\(\d+,\d+\): error ", line)
+    m = file_diagnostic.match(line)
     if m:
         diagnostics = True
-        path = os.path.realpath(os.path.join(base, m.group(1)))
+        path = os.path.normpath(os.path.join(base, m.group(1)))
         source = path in sources
         if not sources:
             source = path.endswith((".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"))
-        own = path in (target, config) or not source
+        own = os.path.realpath(path) in (target, config) or not source
     elif re.match(r"error TS\d+:", line):
         diagnostics = True
         own = True
     elif not line.startswith(" "):
         own = False
-        source = os.path.realpath(line.rstrip("\r\n")) in sources
-        unrecognized = unrecognized or (bool(line.strip()) and not source)
+        unrecognized = unrecognized or bool(line.strip())
     if own:
         selected.append(line)
 # Only ordinary diagnostics in other source files can be ignored. A compiler
@@ -104,6 +108,7 @@ else:
 ' "$(dirname "${TSCONFIG}")" "${FILE}" "$STATUS" "${TSCONFIG}")
       if [ -n "${OWN}" ]; then
         printf '%s\n' "${OWN}"
+        [ "$STATUS" -eq 124 ] && exit 124
         exit 1
       fi
     fi
