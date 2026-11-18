@@ -12,9 +12,8 @@ p = json.load(open('.claude-plugin/plugin.json'))
 assert 'PostToolUse' in p['hooks'], 'PostToolUse hook missing'
 assert 'SessionStart' in p['hooks'], 'SessionStart hook missing'
 assert 'UserPromptSubmit' not in p['hooks'], 'UserPromptSubmit hook should be absent'
-assert 'statusLine' in p, 'statusLine missing from plugin.json'
-assert 'command' in p['statusLine'], 'statusLine.command missing'
-" && ok "plugin.json: SessionStart + PostToolUse + statusLine present" || not_ok "plugin.json: manifest incorrect"
+assert 'PreToolUse' in p['hooks'], 'PreToolUse hook missing'
+" && ok "plugin.json: SessionStart + PreToolUse + PostToolUse present" || not_ok "plugin.json: manifest incorrect"
 
 # 2. Hooks exist and are executable
 for h in hooks/post-tool-verify.sh hooks/pre-tool-guard.sh hooks/statusline.sh; do
@@ -75,7 +74,7 @@ path = os.path.expanduser('~/.claude/.beton-state')
 os.makedirs(os.path.dirname(path), exist_ok=True)
 json.dump({'status': 'pass', 'file': 'x.py', 'errors': 0}, open(path, 'w'))
 "
-SL_OUT=$(bash hooks/statusline.sh 2>/dev/null || true)
+SL_OUT=$(printf '%s\n' '{}' | bash hooks/statusline.sh)
 echo "$SL_OUT" | grep -q "BETON" \
   && ok "statusline: pass state renders BETON badge" \
   || not_ok "statusline: pass state output missing BETON"

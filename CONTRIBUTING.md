@@ -26,4 +26,10 @@ The shell tests exercise hooks and installed checkers. New Python regression tes
 
 For hook changes, validate the manifests with `claude plugin validate .` if Claude Code is installed. This validates metadata without installing the plugin. Include the command, exit code and any warnings in your pull request.
 
+Also run `claude plugin validate --strict .` before a directory submission.
+The statusline script is an optional manual integration through user settings,
+not a plugin manifest field. A missing directory icon is a separate warning;
+no icon is bundled. The developer portal runs additional checks beyond this
+local command.
+
 Use a focused Conventional Commit subject. Explain the behavior change and how you tested it. Report security issues using [SECURITY.md](SECURITY.md), not a public issue with exploit details or credentials.

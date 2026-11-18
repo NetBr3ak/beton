@@ -9,6 +9,10 @@ BETON to plugin do Claude Code. Po `Write`, `Edit` i `MultiEdit` uruchamia lint,
 
 Kontrola po edycji nie cofa zapisu ani mu nie zapobiega. W Pythonie BETON sprawdza też lokalne importy. Na przykład zmiana w `pricing.py` może uruchomić `test_checkout.py`, mimo że pliki mają różne nazwy. Pomija brakujące narzędzia. BETON przekazuje wyniki kontroli, ale nie jest izolacją bezpieczeństwa ani dowodem poprawności zmiany.
 
+Plugin jest przeznaczony dla Claude Code. Pliki wykonywalne w głównym katalogu
+`bin/` wykluczają instalację w czacie Claude i Cowork. Zobacz
+[obsługę pluginów w aplikacjach](https://claude.com/docs/plugins/platform-support).
+
 ```mermaid
 flowchart LR
     A[Planowana edycja] --> B{Znany skrót?}
@@ -128,7 +132,7 @@ python3 bin/beton-stats summary
 
 Narzędzie sesji odczytuje zużycie z lokalnych logów Claude Code. Nie jest rachunkiem dostawcy. Udział odczytu pamięci podręcznej dzieli liczbę tokenów z tego odczytu przez wszystkie tokeny wejściowe.
 
-`hooks/statusline.sh` pokazuje ostatni wynik i liczniki dzienne. Liczniki zerują się o lokalnej północy. Pasek stanu trzeba skonfigurować ręcznie w ustawieniach Claude Code. Obecne Claude Code ignoruje starsze pole `statusLine` w manifeście. Nie nadpisuj istniejącego paska. [Dokumentacja paska stanu](https://code.claude.com/docs/en/statusline) opisuje polecenie ze stałą ścieżką do klonu.
+`hooks/statusline.sh` pokazuje ostatni wynik i liczniki dzienne. Liczniki zerują się o lokalnej północy. Ten opcjonalny pasek stanu trzeba skonfigurować ręcznie w ustawieniach użytkownika Claude Code. Plugin go nie konfiguruje. Nie nadpisuj istniejącego paska. [Dokumentacja paska stanu](https://code.claude.com/docs/en/statusline) opisuje polecenie ze stałą ścieżką do klonu.
 
 ## Demo i dowody
 

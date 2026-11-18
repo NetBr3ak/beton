@@ -9,6 +9,9 @@ BETON is a Claude Code plugin that runs lint, type checks and affected tests aft
 
 The post-edit hook does not undo a write or prevent that write from happening. For Python edits, BETON also follows local imports. For example, editing `pricing.py` can run `test_checkout.py` even though the names differ. Missing tools are skipped. BETON is a feedback loop, not a security sandbox or proof that a change is correct.
 
+The plugin targets Claude Code. Its top-level `bin/` executables prevent
+installation in Claude chat and Cowork. See [plugin support by app](https://claude.com/docs/plugins/platform-support).
+
 ```mermaid
 flowchart LR
     A[Proposed edit] --> B{Known bypass?}
@@ -129,7 +132,7 @@ python3 bin/beton-stats summary
 
 The session utility reports usage from local Claude Code logs, not a provider bill. Its cache-hit ratio is cache-read tokens divided by all input tokens.
 
-`hooks/statusline.sh` renders the last check and daily counters. Counters reset at local midnight, not after a rolling day. Statuslines need manual configuration in Claude Code settings; the manifest's legacy `statusLine` field is ignored by current Claude Code. Do not overwrite an existing statusline. The [statusline documentation](https://code.claude.com/docs/en/statusline) explains how to compose a command using a stable path to your clone.
+`hooks/statusline.sh` renders the last check and daily counters. Counters reset at local midnight, not after a rolling day. This optional integration needs manual configuration in Claude Code user settings. The plugin does not configure it. Do not overwrite an existing statusline. The [statusline documentation](https://code.claude.com/docs/en/statusline) explains how to compose a command using a stable path to your clone.
 
 ## Demo and evidence
 

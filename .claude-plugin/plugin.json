@@ -6,6 +6,8 @@
     "name": "Szymon Jędryczko",
     "url": "https://github.com/NetBr3ak"
   },
+  "homepage": "https://github.com/NetBr3ak/beton#readme",
+  "repository": "https://github.com/NetBr3ak/beton",
   "license": "MIT",
   "hooks": {
     "SessionStart": [
@@ -43,8 +45,5 @@
         ]
       }
     ]
-  },
-  "statusLine": {
-    "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/statusline.sh\""
   }
 }

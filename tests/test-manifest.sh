@@ -11,14 +11,14 @@ for field in ['name','description','hooks']:
 for hook in ['SessionStart', 'PreToolUse', 'PostToolUse']:
     assert hook in p['hooks'], f'{hook} hook missing'
 assert 'UserPromptSubmit' not in p['hooks'], 'UserPromptSubmit hook should be absent'
-assert 'statusLine' in p, 'statusLine missing'
+assert 'statusLine' not in p, 'statusLine belongs in Claude Code settings'
 for hook_name in ('PreToolUse', 'PostToolUse'):
     entries = p['hooks'][hook_name]
     assert any('matcher' in entry for entry in entries if isinstance(entry, dict)), \
         f'{hook_name} missing matcher'
 print('OK')
 " 2>&1 | grep -q "^OK$" \
-  && ok "plugin.json: valid, SessionStart + PreToolUse + PostToolUse + statusLine" \
+  && ok "plugin.json: valid, SessionStart + PreToolUse + PostToolUse" \
   || not_ok "plugin.json: invalid or hook set wrong"
 
 # marketplace.json: valid JSON with required fields
