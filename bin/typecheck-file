@@ -57,23 +57,38 @@ PYEOF
     if command -v tsc &>/dev/null && [ -n "${TSCONFIG}" ]; then
       STATUS=0
       # tsc prints paths relative to its working directory, so run it in the tsconfig directory.
-      OUT=$(cd "$(dirname "${TSCONFIG}")" && _timeout "${TIMEOUT}" tsc --project "${TSCONFIG}" --noEmit 2>&1) || STATUS=$?
+      OUT=$(cd "$(dirname "${TSCONFIG}")" && _timeout "${TIMEOUT}" tsc --project "${TSCONFIG}" --noEmit --pretty false 2>&1) || STATUS=$?
       [ "$STATUS" -eq 124 ] && { printf '%s\n' "${OUT}"; exit 124; }
-      # Block only on the edited file, matched by resolved path: a basename match caught
-      # same-named files, and errors in other files belong to the test run and CI.
+      # Match source diagnostics by resolved path to avoid catching same-named files.
+      # Configuration and global compiler errors invalidate the entire check.
       OWN=$(printf '%s\n' "${OUT}" | python3 -c '
 import os, re, sys
 base, target = sys.argv[1], os.path.realpath(sys.argv[2])
+status = int(sys.argv[3])
+lines = list(sys.stdin)
+diagnostics = False
+selected = []
 own = False
-for line in sys.stdin:
+for line in lines:
     m = re.match(r"(.+?)\(\d+,\d+\): error ", line)
     if m:
-        own = os.path.realpath(os.path.join(base, m.group(1))) == target
+        diagnostics = True
+        path = os.path.realpath(os.path.join(base, m.group(1)))
+        own = path == target or path.endswith(".json")
+    elif re.match(r"error TS\d+:", line):
+        diagnostics = True
+        own = True
     elif not line.startswith(" "):
         own = False
     if own:
-        print(line, end="")
-' "$(dirname "${TSCONFIG}")" "${FILE}")
+        selected.append(line)
+# Only ordinary diagnostics in other source files can be ignored. A compiler
+# crash or an unrecognized failure means the requested check did not complete.
+if status not in (0, 1, 2) or (status and not diagnostics):
+    print("".join(lines).strip() or f"TypeScript compiler exited with status {status} (no output).")
+else:
+    print("".join(selected), end="")
+' "$(dirname "${TSCONFIG}")" "${FILE}" "$STATUS")
       if [ -n "${OWN}" ]; then
         printf '%s\n' "${OWN}"
         exit 1
