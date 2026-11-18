@@ -65,7 +65,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npm install --global npm@11
-          npm publish dist/*.tgz --access public
+          npm publish ./dist/*.tgz --access public
 
   pypi:
     if: inputs.registry == 'pypi' && github.ref == 'refs/heads/master'
@@ -87,7 +87,12 @@ jobs:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
         run: |
           python -m pip install 'uv>=0.13.9,<0.14'
-          uv publish dist/*.whl dist/*.tar.gz
+          if [ -n "$UV_PUBLISH_TOKEN" ]; then
+            uv publish ./dist/*.whl ./dist/*.tar.gz
+          else
+            unset UV_PUBLISH_TOKEN
+            uv publish --trusted-publishing always ./dist/*.whl ./dist/*.tar.gz
+          fi
 
   crates:
     if: inputs.registry == 'crates' && github.ref == 'refs/heads/master'

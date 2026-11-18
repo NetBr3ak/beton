@@ -57,7 +57,7 @@ be installed and checked again after upload. The local `.crate` check alone
 does not prove what crates.io serves.
 
 ```sh
-npm publish dist/beton-checks-0.3.0.tgz --access public
+npm publish ./dist/beton-checks-0.3.0.tgz --access public
 uv publish dist/beton_checks-0.3.0-py3-none-any.whl dist/beton_checks-0.3.0.tar.gz
 cargo publish --locked
 ```
