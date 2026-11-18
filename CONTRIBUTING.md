@@ -1,6 +1,15 @@
 # Contributing
 
-Use Python 3.11 or later, Bash and Node.js. Install `ruff`, `mypy`, `pytest` and `pyyaml` in a virtual environment. Install ESLint and TypeScript to run their optional checker tests.
+Use Python 3.11 or later, Bash and Node.js 22.13 or later. Install the same
+tools as CI in a virtual environment:
+
+```sh
+python -m pip install ruff==0.17.5 mypy==2.4.1 pytest==9.2.0 pyyaml==6.0.3
+npm install -g eslint@10.15.0 typescript@7.0.2
+```
+
+BETON runs the installed project tools. These development pins make its own
+regression suite repeatable; they do not constrain the tools in your project.
 
 Run `bash scripts/check.sh` from the repository root. It checks syntax, production Python lint, the guard's types and the offline tests. The runner isolates state from your real Claude Code settings and returns nonzero if any check fails. There is no build step.
 
