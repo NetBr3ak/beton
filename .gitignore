@@ -10,3 +10,6 @@ evals/snapshots/swebench-*.json
 
 .venv/
 .pytest_cache/
+dist/
+target/
+*.tgz

@@ -24,6 +24,29 @@ flowchart LR
 
 ## Install
 
+For the standalone Python test-discovery command, install the tested wheel
+from [release v0.3.0](https://github.com/NetBr3ak/beton/releases/tag/v0.3.0):
+
+```sh
+pip install https://github.com/NetBr3ak/beton/releases/download/v0.3.0/beton_checks-0.3.0-py3-none-any.whl
+```
+
+After the package is published on a registry, use one package manager:
+
+```sh
+pip install beton-checks
+npm install --global beton-checks
+cargo install beton-checks
+```
+
+Each installs `beton affected path/to/source.py`. These are alternatives, not
+three required steps. Every distribution requires Python 3.11 or later; npm
+also requires Node.js 22.13 or later. They do not enable Claude Code hooks.
+The npm archive includes the plugin for explicit use with `claude --plugin-dir`.
+See [standalone command usage and limits](packaging/README.md).
+
+### Claude Code plugin
+
 Requires Bash, Python 3.11 or later, Node.js and a Claude Code version with plugin support. Install the checkers used by your project separately. BETON does not download them.
 
 ```bash

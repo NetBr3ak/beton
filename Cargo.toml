@@ -1,0 +1,17 @@
+[package]
+name = "beton-checks"
+version = "0.3.0"
+edition = "2024"
+rust-version = "1.85"
+description = "List Python tests affected by local static imports (requires Python 3.11+)"
+license = "MIT"
+repository = "https://github.com/NetBr3ak/beton"
+homepage = "https://github.com/NetBr3ak/beton"
+readme = "packaging/README.md"
+keywords = ["testing", "python", "cli", "static-analysis"]
+categories = ["command-line-utilities", "development-tools::testing"]
+include = ["src/rust/main.rs", "src/beton_checks/*.py", "packaging/bootstrap.py", "packaging/README.md", "LICENSE"]
+
+[[bin]]
+name = "beton"
+path = "src/rust/main.rs"

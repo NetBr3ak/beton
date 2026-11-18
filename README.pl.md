@@ -24,6 +24,28 @@ flowchart LR
 
 ## Instalacja
 
+Polecenie do wyszukiwania testów Pythona można zainstalować osobno z
+[wydania v0.3.0](https://github.com/NetBr3ak/beton/releases/tag/v0.3.0):
+
+```sh
+pip install https://github.com/NetBr3ak/beton/releases/download/v0.3.0/beton_checks-0.3.0-py3-none-any.whl
+```
+
+Po publikacji pakietu w rejestrze wybierz jeden menedżer pakietów:
+
+```sh
+pip install beton-checks
+npm install --global beton-checks
+cargo install beton-checks
+```
+
+Każda wersja udostępnia `beton affected ścieżka/do/pliku.py` i wymaga Pythona
+3.11 lub nowszego. Wersja npm wymaga też Node.js 22.13 lub nowszego. Pakiety
+nie włączają hooków Claude Code. Archiwum npm zawiera też plugin do jawnego
+uruchomienia przez `claude --plugin-dir`. [Użycie i ograniczenia polecenia](packaging/README.md).
+
+### Plugin Claude Code
+
 Wymagane są Bash, Python od wersji 3.11, Node.js i Claude Code z obsługą pluginów. Narzędzia sprawdzające projekt instalujesz osobno. BETON ich nie pobiera.
 
 ```bash

@@ -23,8 +23,11 @@ for file in hooks/*.js; do
 done
 ruff check hooks/_guard_eval.py evals/ bin/beton-stats bin/beton-session-stats tests/test-guard-deletions.py tests/test-runtime-regressions.py tests/test-eval-regressions.py tests/test-typescript-diagnostics.py tests/test-typescript-json-config.py tests/test-typescript-output-volume.py tests/test-mypy-config.py tests/test-mypy-discovery.py
 ruff check bin/python-affected-tests tests/test-python-affected.py
+ruff check src/beton_checks packaging/bootstrap.py scripts/check-packages.py
+node --check packaging/beton.cjs
 ruff check tests/test-python-file-entries.py
 mypy --follow-imports=silent bin/python-affected-tests
+mypy --follow-imports=silent src/beton_checks packaging/bootstrap.py scripts/check-packages.py
 mypy --follow-imports=silent hooks/_guard_eval.py
 
 failed=0

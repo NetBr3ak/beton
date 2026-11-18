@@ -1,0 +1,44 @@
+{
+  "name": "beton-checks",
+  "version": "0.3.0",
+  "description": "List Python tests affected by local static imports (requires Python 3.11+)",
+  "license": "MIT",
+  "author": "Szymon J\u0119dryczko",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NetBr3ak/beton.git"
+  },
+  "homepage": "https://github.com/NetBr3ak/beton",
+  "bugs": {
+    "url": "https://github.com/NetBr3ak/beton/issues"
+  },
+  "bin": {
+    "beton": "packaging/beton.cjs"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "files": [
+    "packaging/beton.cjs",
+    "packaging/bootstrap.py",
+    "packaging/README.md",
+    "src/beton_checks/*.py",
+    "LICENSE",
+    ".claude-plugin/plugin.json",
+    "hooks/",
+    "bin/",
+    "commands/",
+    "agents/",
+    "skills/"
+  ],
+  "keywords": [
+    "testing",
+    "python",
+    "affected-tests",
+    "static-analysis"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+"""Find Python tests that statically import an edited local module."""
+import ast
+import os
+import tokenize
+from collections import defaultdict, deque
+from pathlib import Path
+
+EXCLUDED = {".git", ".hg", ".venv", "venv", "node_modules", "__pycache__",
+            ".tox", ".nox", "site-packages", "build", "dist"}
+PROJECT_MARKERS = ("pyproject.toml", "setup.py", "setup.cfg", "package.json",
+                   "Cargo.toml", "go.mod", ".git")
+
+
+def local_source(path: Path, root: Path) -> Path | None:
+    if not path.is_symlink():
+        return path if path.is_file() else None
+    try:
+        target = path.resolve(strict=True)
+    except (OSError, RuntimeError):
+        # Optional workspaces can leave missing or unresolvable links behind.
+        return None
+    resolved_root = root.resolve()
+    if target.is_relative_to(resolved_root) and target.is_file():
+        return root / target.relative_to(resolved_root)
+    return None
+
+
+def python_files(root: Path) -> dict[Path, Path]:
+    files: dict[Path, Path] = {}
+    for directory, children, names in os.walk(root, onerror=raise_walk_error):
+        parent = Path(directory)
+        children[:] = sorted(
+            name for name in children
+            if name not in EXCLUDED
+            and not (parent / name).is_symlink()
+            and not any((parent / name / marker).exists() for marker in PROJECT_MARKERS)
+        )
+        for name in names:
+            if not name.endswith(".py"):
+                continue
+            path = parent / name
+            target = local_source(path, root)
+            if target is not None:
+                files[path] = target
+    return files
+
+
+def raise_walk_error(error: OSError) -> None:
+    raise error
+
+
+def module_files(base: Path, parts: list[str], files: set[Path]) -> set[Path]:
+    imported = set()
+    directory = base
+    for part in parts:
+        package = directory / "__init__.py"
+        if package in files:
+            imported.add(package)
+        directory = directory / part
+    for candidate in (directory.with_suffix(".py"), directory / "__init__.py"):
+        if candidate in files:
+            imported.add(candidate)
+    return imported
+
+
+def imports(path: Path, files: set[Path], roots: tuple[Path, ...]) -> set[Path]:
+    with tokenize.open(path) as source:
+        tree = ast.parse(source.read(), filename=str(path))
+    dependencies = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                for root in roots:
+                    dependencies.update(module_files(root, alias.name.split("."), files))
+        elif isinstance(node, ast.ImportFrom):
+            bases = roots
+            if node.level:
+                base = path.parent
+                for _ in range(node.level - 1):
+                    base = base.parent
+                bases = (base,)
+            parts = node.module.split(".") if node.module else []
+            for base in bases:
+                dependencies.update(module_files(base, parts, files))
+                for alias in node.names:
+                    if alias.name != "*":
+                        dependencies.update(module_files(base, [*parts, alias.name], files))
+    return dependencies
+
+
+def affected_tests(source: Path, root: Path) -> list[Path]:
+    file_targets = python_files(root)
+    files = set(file_targets)
+    tests = {path for path in files
+             if path.name.startswith("test_") or path.name.endswith("_test.py")}
+    dependents: dict[Path, set[Path]] = defaultdict(set)
+    for path in sorted(files):
+        try:
+            dependencies = imports(path, files, (root, root / "src", path.parent))
+        except (SyntaxError, UnicodeError, LookupError):
+            # Unreadable syntax makes the dependency graph incomplete. Run all
+            # discovered tests rather than claim that none depend on the edit.
+            return sorted(tests)
+        if file_targets[path] != path:
+            # Imports through an alias still depend on the local target's edits.
+            dependencies.add(file_targets[path])
+        if path in tests:
+            for parent in (path.parent, *path.parent.parents):
+                if not parent.is_relative_to(root):
+                    break
+                fixture = parent / "conftest.py"
+                if fixture in files:
+                    dependencies.add(fixture)
+        for dependency in dependencies:
+            dependents[dependency].add(path)
+    affected = {source, file_targets.get(source, source)}
+    pending = deque(affected)
+    while pending:
+        for dependent in dependents[pending.popleft()] - affected:
+            affected.add(dependent)
+            pending.append(dependent)
+    return sorted(tests & affected)
+
+

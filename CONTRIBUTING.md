@@ -11,7 +11,14 @@ npm install -g eslint@10.15.0 typescript@7.0.2
 BETON runs the installed project tools. These development pins make its own
 regression suite repeatable; they do not constrain the tools in your project.
 
-Run `bash scripts/check.sh` from the repository root. It checks syntax, production Python lint, the guard's types and the offline tests. The runner isolates state from your real Claude Code settings and returns nonzero if any check fails. There is no build step.
+Run `bash scripts/check.sh` from the repository root. It checks syntax, production Python lint, types and the offline tests. The runner isolates state from your real Claude Code settings and returns nonzero if any check fails. The plugin has no build step.
+
+For standalone package changes, also run `python3 scripts/check-packages.py`.
+It requires uv, npm and Cargo. It builds wheel, source, npm and Cargo archives
+under `dist/`, installs each in temporary directories, and checks the installed
+commands on a Python project with no dependencies. Cargo has no dependencies
+and builds offline. The package check needs Python 3.12 or later for its safe
+archive extraction; the released command supports Python 3.11 or later.
 
 Existing tests define the current behavior. Add a regression test before fixing a bug. Keep a test with the fix it proves. Do not weaken assertions or add skips to get a passing result. Demo source has an intentional bug and is excluded from production lint.
 
