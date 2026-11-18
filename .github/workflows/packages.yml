@@ -4,11 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       registry:
-        description: Build only, or publish one registry after verification
+        description: Verify HEAD, stage a release, or publish one registry
         required: true
         default: verify
         type: choice
-        options: [verify, npm, pypi, crates]
+        options: [verify, stage, npm, pypi, crates]
+      release_tag:
+        description: Existing public release tag (required except in verify mode)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -19,6 +23,7 @@ concurrency:
 
 jobs:
   build:
+    if: inputs.registry == 'verify'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -37,25 +42,61 @@ jobs:
           bash scripts/check.sh
           python scripts/check-packages.py
           cd dist
-          sha256sum *.whl *.tar.gz *.tgz *.crate > SHA256SUMS
+          sha256sum -- *.whl *.tar.gz *.tgz *.crate > SHA256SUMS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: beton-checks-packages
           path: dist/
           if-no-files-found: error
 
+  stage:
+    if: inputs.registry != 'verify'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      commit: ${{ steps.release.outputs.commit }}
+      manifest_sha: ${{ steps.release.outputs.manifest_sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download and verify published release archives
+        id: release
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/stage-release.sh "$RELEASE_TAG" release-assets "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.release.outputs.commit }}
+          path: tagged-source
+          persist-credentials: false
+      - name: Compare Cargo package from clean tagged source
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: bash scripts/check-release-cargo.sh "$GITHUB_WORKSPACE/release-assets" "$GITHUB_WORKSPACE/tagged-source" "$RUNNER_TEMP/cargo-compare" "$RELEASE_VERSION"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: beton-checks-release
+          path: release-assets/
+          if-no-files-found: error
+
   npm:
     if: inputs.registry == 'npm' && github.ref == 'refs/heads/master'
-    needs: build
+    needs: stage
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: beton-checks-packages
-          path: dist/
+          name: beton-checks-release
+          path: release-assets/
+      - name: Recheck exact published npm input
+        env:
+          RELEASE_VERSION: ${{ needs.stage.outputs.version }}
+          RELEASE_MANIFEST_SHA: ${{ needs.stage.outputs.manifest_sha }}
+        run: bash scripts/check-release-assets.sh release-assets "$RELEASE_VERSION" "$RELEASE_MANIFEST_SHA"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
@@ -65,38 +106,44 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npm install --global npm@11
-          npm publish ./dist/*.tgz --access public
+          npm publish ./release-assets/*.tgz --access public
 
   pypi:
     if: inputs.registry == 'pypi' && github.ref == 'refs/heads/master'
-    needs: build
+    needs: stage
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: beton-checks-packages
-          path: dist/
+          name: beton-checks-release
+          path: release-assets/
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
+      - name: Recheck exact published Python inputs
+        env:
+          RELEASE_VERSION: ${{ needs.stage.outputs.version }}
+          RELEASE_MANIFEST_SHA: ${{ needs.stage.outputs.manifest_sha }}
+        run: bash scripts/check-release-assets.sh release-assets "$RELEASE_VERSION" "$RELEASE_MANIFEST_SHA"
       - name: Publish tested Python archives
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
         run: |
           python -m pip install 'uv>=0.13.9,<0.14'
           if [ -n "$UV_PUBLISH_TOKEN" ]; then
-            uv publish ./dist/*.whl ./dist/*.tar.gz
+            uv publish ./release-assets/*.whl ./release-assets/*.tar.gz
           else
             unset UV_PUBLISH_TOKEN
-            uv publish --trusted-publishing always ./dist/*.whl ./dist/*.tar.gz
+            uv publish --trusted-publishing always ./release-assets/*.whl ./release-assets/*.tar.gz
           fi
 
   crates:
     if: inputs.registry == 'crates' && github.ref == 'refs/heads/master'
-    needs: build
+    needs: stage
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -104,10 +151,25 @@ jobs:
     env:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: beton-checks-packages
-          path: dist/
+          name: beton-checks-release
+          path: release-assets/
+      - name: Recheck exact published Cargo input
+        env:
+          RELEASE_VERSION: ${{ needs.stage.outputs.version }}
+          RELEASE_MANIFEST_SHA: ${{ needs.stage.outputs.manifest_sha }}
+        run: bash scripts/check-release-assets.sh release-assets "$RELEASE_VERSION" "$RELEASE_MANIFEST_SHA"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.stage.outputs.commit }}
+          path: tagged-source
+          persist-credentials: false
+      - name: Recheck clean tagged source before publishing
+        env:
+          RELEASE_VERSION: ${{ needs.stage.outputs.version }}
+        run: bash scripts/check-release-cargo.sh "$GITHUB_WORKSPACE/release-assets" "$GITHUB_WORKSPACE/tagged-source" "$RUNNER_TEMP/cargo-compare" "$RELEASE_VERSION"
       - name: Authenticate with crates.io trusted publishing
         if: env.CARGO_REGISTRY_TOKEN == ''
         id: crates-auth
@@ -115,6 +177,4 @@ jobs:
       - name: Publish verified Cargo source
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.crates-auth.outputs.token }}
-        run: |
-          python3 -c 'import glob, tarfile; tarfile.open(glob.glob("dist/*.crate")[0]).extractall("dist", filter="data")'
-          cargo publish --manifest-path dist/beton-checks-0.3.0/Cargo.toml --locked
+        run: cargo publish --manifest-path tagged-source/Cargo.toml --locked
