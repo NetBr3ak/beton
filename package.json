@@ -1,6 +1,6 @@
 {
   "name": "beton-checks",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "List Python tests affected by local static imports (requires Python 3.11+)",
   "license": "MIT",
   "author": "Szymon J\u0119dryczko",

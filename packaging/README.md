@@ -6,17 +6,17 @@ static-import engine as the BETON plugin.
 
 ## Install from the GitHub Release
 
-Download the archives from [BETON v0.3.0](https://github.com/NetBr3ak/beton/releases/tag/v0.3.0).
+Download the archives from [BETON v0.3.1](https://github.com/NetBr3ak/beton/releases/tag/v0.3.1).
 For example, install the Python wheel directly:
 
 ```sh
-pip install https://github.com/NetBr3ak/beton/releases/download/v0.3.0/beton_checks-0.3.0-py3-none-any.whl
+pip install https://github.com/NetBr3ak/beton/releases/download/v0.3.1/beton_checks-0.3.1-py3-none-any.whl
 ```
 
 The release also provides an npm `.tgz`, a Python source archive, and a Cargo
 `.crate` source archive, with `SHA256SUMS`. npm accepts the downloaded `.tgz`
 path. To install the crate before registry publication, extract it and run
-`cargo install --path beton-checks-0.3.0 --offline --locked`.
+`cargo install --path beton-checks-0.3.1 --offline --locked`.
 
 ## Registry installation after publication
 

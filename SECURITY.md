@@ -2,7 +2,7 @@
 
 ## Supported version
 
-The current plugin manifest declares version `0.3.0`. Report issues against the current default branch. No response or patch deadline is promised.
+The current plugin manifest declares version `0.3.1`. Report issues against the current default branch. No response or patch deadline is promised.
 
 ## Reporting a vulnerability
 

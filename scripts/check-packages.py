@@ -7,9 +7,11 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+VERSION = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
 
 
 def run(command: list[str], directory: Path) -> str:
@@ -22,6 +24,9 @@ def run(command: list[str], directory: Path) -> str:
 
 
 def verify(command: list[str], project: Path) -> None:
+    version = run([*command, "--version"], project)
+    if version != f"beton {VERSION}":
+        raise AssertionError(f"{command!r}: wrong version: {version}")
     expected = [str(project / "tests/test_checkout.py")]
     result = run([*command, "affected", "pricing.py", "--json"], project)
     if json.loads(result) != expected:
@@ -64,7 +69,7 @@ def main() -> None:
         ["cargo", "package", "--offline", "--allow-dirty", "--no-default-features"],
         ROOT,
     )
-    shutil.copy2(ROOT / "target/package/beton-checks-0.3.0.crate", artifacts)
+    shutil.copy2(ROOT / f"target/package/beton-checks-{VERSION}.crate", artifacts)
     with tempfile.TemporaryDirectory(prefix="beton-packages-") as scratch:
         directory = Path(scratch).resolve()
         project = directory / "project with spaces"
@@ -76,8 +81,8 @@ def main() -> None:
         (project / "unused.py").touch()
         (project / "tests/test_checkout.py").write_text("import pricing\n")
         for distribution in (
-            artifacts / "beton_checks-0.3.0-py3-none-any.whl",
-            artifacts / "beton_checks-0.3.0.tar.gz",
+            artifacts / f"beton_checks-{VERSION}-py3-none-any.whl",
+            artifacts / f"beton_checks-{VERSION}.tar.gz",
         ):
             environment = directory / distribution.name
             run(["uv", "venv", "--python", sys.executable, str(environment)], directory)
@@ -129,7 +134,7 @@ def main() -> None:
         )
         plugin = node_project / "node_modules/beton-checks"
         manifest = json.loads((plugin / ".claude-plugin/plugin.json").read_text())
-        if manifest["version"] != "0.3.0":
+        if manifest["version"] != VERSION:
             raise AssertionError("npm archive has the wrong plugin version")
         for name in (
             "hooks/_guard_eval.py",
@@ -186,7 +191,7 @@ def main() -> None:
         print(
             "PASS installed npm plugin: manifest, skill, guard, discovery", flush=True
         )
-        archive = artifacts / "beton-checks-0.3.0.crate"
+        archive = artifacts / f"beton-checks-{VERSION}.crate"
         with tarfile.open(archive) as package:
             package.extractall(directory, filter="data")
         cargo_root = directory / "cargo-consumer"
@@ -198,7 +203,7 @@ def main() -> None:
                 "--locked",
                 "--no-default-features",
                 "--path",
-                str(directory / "beton-checks-0.3.0"),
+                str(directory / f"beton-checks-{VERSION}"),
                 "--root",
                 str(cargo_root),
             ],
