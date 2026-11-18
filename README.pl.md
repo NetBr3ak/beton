@@ -7,7 +7,7 @@
 
 BETON to plugin do Claude Code. Po `Write`, `Edit` i `MultiEdit` uruchamia lint, kontrolę typów i powiązane testy. Zwraca błędy do Claude, aby kolejna zmiana mogła je naprawić. Osobna kontrola odrzuca skróty, takie jak `# noqa`, `@ts-ignore` i pomijanie testów, przed wykonaniem narzędzia.
 
-Kontrola po edycji nie cofa zapisu ani mu nie zapobiega. Testy dobiera według nazw plików, nie grafu zależności. Pomija brakujące narzędzia. BETON przekazuje wyniki kontroli, ale nie jest izolacją bezpieczeństwa ani dowodem poprawności zmiany.
+Kontrola po edycji nie cofa zapisu ani mu nie zapobiega. W Pythonie BETON sprawdza też lokalne importy. Na przykład zmiana w `pricing.py` może uruchomić `test_checkout.py`, mimo że pliki mają różne nazwy. Pomija brakujące narzędzia. BETON przekazuje wyniki kontroli, ale nie jest izolacją bezpieczeństwa ani dowodem poprawności zmiany.
 
 ```mermaid
 flowchart LR
@@ -54,7 +54,9 @@ Jeśli instalacja miała zakres projektu lub lokalny, podaj ten sam `--scope` pr
 
 Dla Pythona zainstaluj `python3 -m pip install ruff mypy pytest`. Dla TypeScript zainstaluj i skonfiguruj ESLint, TypeScript oraz narzędzie testujące w projekcie. Błąd konfiguracji zainstalowanego narzędzia jest błędem kontroli. ESLint działa tylko wtedy, gdy w katalogu edytowanego pliku lub wyżej istnieje plik `eslint.config.*` albo `.eslintrc*`. tsc sprawdza cały projekt, ale blokuje tylko błędy w edytowanym pliku, rozpoznanym po pełnej ścieżce. Błędy w innych plikach zostają dla testów i CI.
 
-Nazwy testów muszą pasować do `test_NAME.EXT`, `NAME_test.EXT`, `NAME.test.EXT` lub `NAME.spec.EXT`. Edycja takiego pliku uruchamia ten plik. Wyszukiwanie kończy się przy najbliższym znaczniku projektu lub katalogu Git. Hook po edycji uruchamia testy tylko w drzewie roboczym Git. Nie uruchamia całego zestawu po każdej edycji i nie sprawdza zapisów przez Bash.
+W Pythonie BETON śledzi importy bezpośrednie i pośrednie, także w plikach `conftest.py`. Nie rozpoznaje importów dynamicznych ani własnych reguł nazewnictwa pytest. Pełny zestaw testów nadal warto uruchamiać w CI.
+
+BETON dobiera też testy według nazw: `test_NAME.EXT`, `NAME_test.EXT`, `NAME.test.EXT` lub `NAME.spec.EXT`. Edycja takiego pliku uruchamia ten plik. Wyszukiwanie kończy się przy najbliższym znaczniku projektu lub katalogu Git. Hook po edycji uruchamia testy tylko w drzewie roboczym Git. Nie uruchamia całego zestawu po każdej edycji i nie sprawdza zapisów przez Bash.
 
 ## Ochrona testów i usuwanie kodu
 

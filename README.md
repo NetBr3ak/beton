@@ -7,7 +7,7 @@
 
 BETON is a Claude Code plugin that runs lint, type checks and affected tests after `Write`, `Edit` and `MultiEdit`. It sends failures back to Claude so the next change can address them. A separate guard rejects common shortcuts, such as `# noqa`, `@ts-ignore` and skipped tests, before the tool runs.
 
-The post-edit hook does not undo a write or prevent that write from happening. Test discovery uses file names, not a dependency graph. Missing tools are skipped. BETON is a feedback loop, not a security sandbox or proof that a change is correct.
+The post-edit hook does not undo a write or prevent that write from happening. For Python edits, BETON also follows local imports. For example, editing `pricing.py` can run `test_checkout.py` even though the names differ. Missing tools are skipped. BETON is a feedback loop, not a security sandbox or proof that a change is correct.
 
 ```mermaid
 flowchart LR
@@ -54,7 +54,9 @@ If you installed into a project or local scope, pass the same `--scope` to unins
 
 For Python, start with `python3 -m pip install ruff mypy pytest`. For TypeScript, install and configure ESLint, TypeScript and your test runner in the project. An installed checker with invalid configuration reports a failure. ESLint runs only when an `eslint.config.*` or `.eslintrc*` file exists in the edited file's directory or above it. tsc checks the whole project but blocks only on errors in the edited file, matched by its full path; errors in other files are left to the test run and CI.
 
-Tests are matched by `test_NAME.EXT`, `NAME_test.EXT`, `NAME.test.EXT` or `NAME.spec.EXT`. Editing a matching test file runs that file. Discovery stops at the nearest project marker or Git root. The post-edit hook runs tests only inside a Git working tree. It does not run the full suite for every edit, and it does not verify Bash writes.
+Python discovery follows direct and transitive imports, including dependencies of `conftest.py`. It does not resolve dynamic imports or custom pytest naming rules. Keep the full suite in CI.
+
+BETON also matches tests by `test_NAME.EXT`, `NAME_test.EXT`, `NAME.test.EXT` or `NAME.spec.EXT`. Editing a matching test file runs that file. Discovery stops at the nearest project marker or Git root. The post-edit hook runs tests only inside a Git working tree. It does not run the full suite for every edit, and it does not verify Bash writes.
 
 ## Guard and legitimate test removal
 

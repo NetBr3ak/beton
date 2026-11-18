@@ -12,6 +12,15 @@
       "description": "Checks edits and rejects common lint and test bypass patterns.",
       "source": "./",
       "category": "productivity"
+    },
+    {
+      "name": "release-field-skills",
+      "source": {
+        "source": "github",
+        "repo": "NetBr3ak/release-field-skills",
+        "sha": "944b352cc09192dbcca250861506cf7f09e479f8"
+      },
+      "category": "productivity"
     }
   ]
 }
