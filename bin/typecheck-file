@@ -15,23 +15,44 @@ case "${FILE##*.}" in
     if command -v mypy &>/dev/null; then
       # Respect user config when present (mypy.ini, .mypy.ini, pyproject.toml [tool.mypy], setup.cfg [mypy]).
       # Only inject our defaults if no config is reachable.
-      D=$(cd "$(dirname "${FILE}")" && pwd)
-      FILE="$D/$(basename "${FILE}")"
-      MYPY_CONFIG=""
-      while [ "$D" != "/" ]; do
-        for c in mypy.ini .mypy.ini setup.cfg; do
-          [ -f "$D/$c" ] && grep -q "^\[mypy" "$D/$c" 2>/dev/null && MYPY_CONFIG="$D/$c" && break 2
-        done
-        if [ -f "$D/pyproject.toml" ] && grep -q "^\[tool.mypy" "$D/pyproject.toml" 2>/dev/null; then
-          MYPY_CONFIG="$D/pyproject.toml"; break
-        fi
-        D=$(dirname "$D")
-      done
+      FILE="$(cd "$(dirname "${FILE}")" && pwd)/$(basename "${FILE}")"
+      MYPY_CONFIG=$(python3 - "${FILE}" << 'PYEOF'
+import configparser
+from pathlib import Path
+import sys
+import tomllib
+
+directory = Path(sys.argv[1]).parent
+for parent in (directory, *directory.parents):
+    for name in ("mypy.ini", ".mypy.ini", "pyproject.toml", "setup.cfg"):
+        path = parent / name
+        if not path.is_file():
+            continue
+        try:
+            if name == "pyproject.toml":
+                with path.open("rb") as source:
+                    tool = tomllib.load(source).get("tool")
+                configured = isinstance(tool, dict) and "mypy" in tool
+            else:
+                parser = configparser.RawConfigParser()
+                with path.open() as source:
+                    parser.read_file(source)
+                configured = parser.has_section("mypy")
+        except (tomllib.TOMLDecodeError, configparser.Error):
+            # Let mypy report malformed project settings instead of ignoring them.
+            configured = True
+        if configured:
+            print(path)
+            sys.exit(0)
+    if (parent / ".git").exists() or (parent / ".hg").exists():
+        break
+PYEOF
+      )
       if [ -n "$MYPY_CONFIG" ]; then
         # Resolve paths in project settings from the project, not the hook caller.
-        (cd "$D" && _timeout "${TIMEOUT}" mypy --config-file "$MYPY_CONFIG" "${FILE}"); exit $?
+        (cd "$(dirname "$MYPY_CONFIG")" && _timeout "${TIMEOUT}" mypy --config-file "$MYPY_CONFIG" "${FILE}"); exit $?
       else
-        _timeout "${TIMEOUT}" mypy --ignore-missing-imports --no-error-summary "${FILE}"; exit $?
+        (cd "$(dirname "${FILE}")" && _timeout "${TIMEOUT}" mypy --ignore-missing-imports --no-error-summary "${FILE}"); exit $?
       fi
     elif command -v pyright &>/dev/null; then
       _timeout "${TIMEOUT}" pyright "${FILE}"; exit $?
