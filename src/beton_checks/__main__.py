@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -33,7 +32,7 @@ def main() -> int:
         "--json", action="store_true", help="print a JSON array of absolute paths"
     )
     arguments = parser.parse_args()
-    source = Path(os.path.abspath(arguments.file))
+    source = arguments.file.resolve()
     root = arguments.root.resolve() if arguments.root else project_root(source)
     if source.suffix != ".py" or not source.is_file():
         parser.error("file must be an existing Python (.py) file")
