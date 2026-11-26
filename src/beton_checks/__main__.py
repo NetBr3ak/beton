@@ -19,7 +19,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         prog="beton", description="List Python tests affected by local static imports."
     )
-    parser.add_argument("--version", action="version", version="%(prog)s 0.3.1")
+    parser.add_argument("--version", action="version", version="%(prog)s 0.3.2")
     commands = parser.add_subparsers(dest="command", required=True)
     affected = commands.add_parser(
         "affected", help="list affected Python tests without running them"

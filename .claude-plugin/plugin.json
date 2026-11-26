@@ -1,6 +1,6 @@
 {
   "name": "beton",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Runs lint, type checks and affected tests after edits. Rejects common bypass patterns before edits.",
   "author": {
     "name": "Szymon Jędryczko",
