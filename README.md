@@ -28,11 +28,11 @@ flowchart LR
 ## Install
 
 For the standalone Python test-discovery command, install the tested wheel
-from [release v0.3.1](https://github.com/NetBr3ak/beton/releases/tag/v0.3.1).
+from [release v0.3.2](https://github.com/NetBr3ak/beton/releases/tag/v0.3.2).
 For npm and checksum verification, see the [release installation guide](packaging/README.md#install-from-the-github-release):
 
 ```sh
-pip install https://github.com/NetBr3ak/beton/releases/download/v0.3.1/beton_checks-0.3.1-py3-none-any.whl
+pip install https://github.com/NetBr3ak/beton/releases/download/v0.3.2/beton_checks-0.3.2-py3-none-any.whl
 ```
 
 After the package is published on a registry, use one package manager:

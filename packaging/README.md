@@ -6,34 +6,34 @@ static-import engine as the BETON plugin.
 
 ## Install from the GitHub Release
 
-The [v0.3.1 release](https://github.com/NetBr3ak/beton/releases/tag/v0.3.1)
+The [v0.3.2 release](https://github.com/NetBr3ak/beton/releases/tag/v0.3.2)
 contains a Python wheel, an npm archive and their checksums. Choose one
 distribution. Download the checksum file first:
 
 ```sh
-release=https://github.com/NetBr3ak/beton/releases/download/v0.3.1
+release=https://github.com/NetBr3ak/beton/releases/download/v0.3.2
 curl -fLO "$release/SHA256SUMS"
 ```
 
 For Python:
 
 ```sh
-curl -fLO "$release/beton_checks-0.3.1-py3-none-any.whl"
-grep '  beton_checks-0.3.1-py3-none-any.whl$' SHA256SUMS | shasum -a 256 -c &&
-  python3 -m pip install ./beton_checks-0.3.1-py3-none-any.whl
+curl -fLO "$release/beton_checks-0.3.2-py3-none-any.whl"
+grep '  beton_checks-0.3.2-py3-none-any.whl$' SHA256SUMS | shasum -a 256 -c &&
+  python3 -m pip install ./beton_checks-0.3.2-py3-none-any.whl
 ```
 
 For npm:
 
 ```sh
-curl -fLO "$release/beton-checks-0.3.1.tgz"
-grep '  beton-checks-0.3.1.tgz$' SHA256SUMS | shasum -a 256 -c &&
-  npm install --global ./beton-checks-0.3.1.tgz
+curl -fLO "$release/beton-checks-0.3.2.tgz"
+grep '  beton-checks-0.3.2.tgz$' SHA256SUMS | shasum -a 256 -c &&
+  npm install --global ./beton-checks-0.3.2.tgz
 ```
 
 The release also provides a Python source archive and a Cargo source archive.
 For the latter, verify its checksum, extract it and run
-`cargo install --path beton-checks-0.3.1 --offline --locked`.
+`cargo install --path beton-checks-0.3.2 --offline --locked`.
 
 ## Registry installation after publication
 

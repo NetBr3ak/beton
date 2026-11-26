@@ -29,11 +29,11 @@ flowchart LR
 ## Instalacja
 
 Polecenie do wyszukiwania testów Pythona można zainstalować osobno z
-[wydania v0.3.1](https://github.com/NetBr3ak/beton/releases/tag/v0.3.1).
+[wydania v0.3.2](https://github.com/NetBr3ak/beton/releases/tag/v0.3.2).
 Instrukcja instalacji npm i sprawdzania sum jest w [opisie wydania](packaging/README.md#install-from-the-github-release):
 
 ```sh
-pip install https://github.com/NetBr3ak/beton/releases/download/v0.3.1/beton_checks-0.3.1-py3-none-any.whl
+pip install https://github.com/NetBr3ak/beton/releases/download/v0.3.2/beton_checks-0.3.2-py3-none-any.whl
 ```
 
 Po publikacji pakietu w rejestrze wybierz jeden menedżer pakietów:
