@@ -32,11 +32,11 @@ def main() -> int:
         "--json", action="store_true", help="print a JSON array of absolute paths"
     )
     arguments = parser.parse_args()
-    source = arguments.file.resolve()
+    source = arguments.file.parent.resolve() / arguments.file.name
     root = arguments.root.resolve() if arguments.root else project_root(source)
     if source.suffix != ".py" or not source.is_file():
         parser.error("file must be an existing Python (.py) file")
-    if not root.is_dir() or not source.is_relative_to(root):
+    if not root.is_dir() or not source.is_relative_to(root) or not source.resolve().is_relative_to(root):
         parser.error("file must be inside the project root")
     try:
         selected = [str(path) for path in affected_tests(source, root)]
