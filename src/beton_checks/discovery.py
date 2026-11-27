@@ -4,6 +4,8 @@ import ast
 import os
 import tokenize
 from collections import defaultdict, deque
+from collections.abc import Callable
+from functools import lru_cache
 from pathlib import Path
 
 EXCLUDED = {".git", ".hg", ".venv", "venv", "node_modules", "__pycache__",
@@ -65,6 +67,11 @@ def module_files(base: Path, parts: list[str], files: set[Path]) -> set[Path]:
 
 
 def imports(path: Path, files: set[Path], roots: tuple[Path, ...]) -> set[Path]:
+    return _imports(path, roots, lambda base, parts: module_files(base, list(parts), files))
+
+
+def _imports(path: Path, roots: tuple[Path, ...],
+             resolve: Callable[[Path, tuple[str, ...]], set[Path]]) -> set[Path]:
     with tokenize.open(path) as source:
         tree = ast.parse(source.read(), filename=str(path))
     dependencies = set()
@@ -72,7 +79,7 @@ def imports(path: Path, files: set[Path], roots: tuple[Path, ...]) -> set[Path]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 for root in roots:
-                    dependencies.update(module_files(root, alias.name.split("."), files))
+                    dependencies.update(resolve(root, tuple(alias.name.split("."))))
         elif isinstance(node, ast.ImportFrom):
             bases = roots
             if node.level:
@@ -80,24 +87,29 @@ def imports(path: Path, files: set[Path], roots: tuple[Path, ...]) -> set[Path]:
                 for _ in range(node.level - 1):
                     base = base.parent
                 bases = (base,)
-            parts = node.module.split(".") if node.module else []
+            parts = tuple(node.module.split(".")) if node.module else ()
             for base in bases:
-                dependencies.update(module_files(base, parts, files))
+                dependencies.update(resolve(base, parts))
                 for alias in node.names:
                     if alias.name != "*":
-                        dependencies.update(module_files(base, [*parts, alias.name], files))
+                        dependencies.update(resolve(base, (*parts, alias.name)))
     return dependencies
 
 
 def affected_tests(source: Path, root: Path) -> list[Path]:
     file_targets = python_files(root)
     files = set(file_targets)
+
+    @lru_cache(maxsize=512)
+    def resolve(base: Path, parts: tuple[str, ...]) -> set[Path]:
+        return module_files(base, list(parts), files)
+
     tests = {path for path in files
              if path.name.startswith("test_") or path.name.endswith("_test.py")}
     dependents: dict[Path, set[Path]] = defaultdict(set)
     for path in sorted(files):
         try:
-            dependencies = imports(path, files, (root, root / "src", path.parent))
+            dependencies = _imports(path, (root, root / "src", path.parent), resolve)
         except (SyntaxError, UnicodeError, LookupError):
             # Unreadable syntax makes the dependency graph incomplete. Run all
             # discovered tests rather than claim that none depend on the edit.
