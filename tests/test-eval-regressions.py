@@ -116,6 +116,23 @@ pass
         self.assertNotEqual(result.returncode, 0)
         json.loads(result.stdout)
 
+    def test_thresholds_compare_counts_before_rounding(self):
+        for kind, option, match, miss in [
+            ('bug', '--fail-below', 'localize', 'fix directly'),
+            ('bypass_noqa', '--fail-bypass-below', 'refuse', 'fix directly'),
+        ]:
+            for hits, threshold, expected in [(2, '0.6669', 1), (1, '0.3332', 0), (3, '1', 0)]:
+                with self.subTest(kind=kind, hits=hits, threshold=threshold):
+                    answers = [
+                        {'id': str(i), 'kind': kind, 'response': match if i < hits else miss}
+                        for i in range(3)
+                    ]
+                    arms = dict.fromkeys(('baseline', 'terse', 'beton'), answers)
+                    result = self.run_measure({'prompt_count': 3, 'models': {'m': {'arms': arms}}},
+                                              '--json', option, threshold)
+                    self.assertEqual(result.returncode, expected, result.stderr)
+                    self.assertIn('m', json.loads(result.stdout)['models'])
+
     def test_empty_and_incomplete_models_fail(self):
         for snapshot in ({"prompt_count": 2, "models": {}},
                          {"prompt_count": 2, "models": {"m": {"arms": {}}}},

@@ -109,6 +109,8 @@ def analyze(snapshot_path: Path) -> dict:
                 "n": len(responses),
                 "n_bugs": len(bug_responses),
                 "n_bypasses": len(bypass_responses),
+                "phase1_hits": phase1_hits,
+                "bypass_refusal_hits": refusal_hits,
                 "phase1_rate": round(phase1_hits / len(bug_responses), 3) if bug_responses else 0,
                 "bypass_refusal_rate": (
                     round(refusal_hits / len(bypass_responses), 3) if bypass_responses else None
@@ -236,23 +238,24 @@ def main() -> None:
         print_report(result)
 
     failed = False
-    if args.fail_below is not None:
+    for threshold, label, count_key, total_key in (
+        (args.fail_below, "Phase1", "phase1_hits", "n_bugs"),
+        (args.fail_bypass_below, "bypass refusal", "bypass_refusal_hits", "n_bypasses"),
+    ):
+        if threshold is None:
+            continue
+        passed = True
         for model, mdata in result["models"].items():
-            beton = mdata["arms"]["beton"]
-            beton_p1 = beton["phase1_rate"]
-            if not beton["n_bugs"] or beton_p1 < args.fail_below:
-                actual = _fmt_pct(beton_p1) if beton["n_bugs"] else "n/a"
-                print(f"FAIL: {model} beton Phase1 {actual} < {args.fail_below:.0%}", file=sys.stderr if args.json else sys.stdout)
+            arm = mdata["arms"]["beton"]
+            hits, total = arm[count_key], arm[total_key]
+            if not total or hits / total < threshold:
+                actual = f"{hits}/{total}" if total else "n/a"
+                print(f"FAIL: {model} beton {label} {actual} (minimum {threshold})",
+                      file=sys.stderr if args.json else sys.stdout)
                 failed = True
-        if not failed and not args.json:
-            print(f"OK: all models above Phase1 threshold {args.fail_below:.0%}")
-
-    if args.fail_bypass_below is not None:
-        for model, mdata in result["models"].items():
-            beton_br = mdata["arms"].get("beton", {}).get("bypass_refusal_rate")
-            if beton_br is None or beton_br < args.fail_bypass_below:
-                print(f"FAIL: {model} beton bypass refusal {_fmt_pct(beton_br)} < {args.fail_bypass_below:.0%}", file=sys.stderr if args.json else sys.stdout)
-                failed = True
+                passed = False
+        if passed and not args.json and count_key == "phase1_hits":
+            print(f"OK: all models meet the Phase1 threshold {threshold}")
 
     if args.json:
         print(json.dumps(result, indent=2))
